@@ -416,6 +416,25 @@ def stability_party_handler(submission: EventSubmission) -> list[NotificationRes
     if team is None:
         logging.info(f"Team not found for RSN '{submission.rsn}' or ID '{submission.id}' in event '{event.name}' (ID: {event.id}).")
         return None
+    
+    eventData = event.data
+    if eventData.get("log") is None:
+        eventData["log"] = {} # Ensure log is initialized
+
+    if eventData["log"][submission.trigger] is None:
+        eventData["log"][submission.trigger] = {
+            "value": submission.totalValue,
+            "quantity": submission.quantity
+        }
+    else:
+        eventData["log"][submission.trigger] = {
+            "value": eventData["log"][submission.trigger]["value"] + submission.totalValue,
+            "quantity": eventData["log"][submission.trigger]["quantity"] + submission.quantity
+        }
+
+    # Save the updated event data
+    event.data = eventData
+    db.session.commit() # Commit the event data changes
 
     # Ensure team.data is not None before passing to SaveData.from_dict
     team_data_dict = team.data if team.data is not None else {}
