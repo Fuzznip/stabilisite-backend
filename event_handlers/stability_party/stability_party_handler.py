@@ -421,7 +421,7 @@ def stability_party_handler(submission: EventSubmission) -> list[NotificationRes
     if eventData.get("log") is None:
         eventData["log"] = {} # Ensure log is initialized
 
-    if eventData["log"][submission.trigger] is None:
+    if eventData["log"].get(submission.trigger) is None:
         eventData["log"][submission.trigger] = {
             "value": submission.totalValue,
             "quantity": submission.quantity
