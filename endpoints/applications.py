@@ -72,7 +72,7 @@ def create_application():
     add_discord_role(user, "Applied")
     remove_discord_roles(user, ["Guest", "Applicant"])
     set_discord_nickname(user.discord_id, data.runescape_name)
-    create_discord_text_channel(channel_name=f"{data.runescape_name}-application", category="Applications", role_id_list=["Staff"], user_id_list=[data.user_id])
+    create_discord_text_channel(channel_name=f"{data.runescape_name}-application", category="Applications", role_name_list=["Staff"], user_id_list=[data.user_id])
     return json.dumps(data.serialize(), cls=ModelEncoder)
 
 @app.route("/applications/<id>", methods=['GET'])
