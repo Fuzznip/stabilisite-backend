@@ -6,6 +6,34 @@ from typing import Optional, List, Dict, Any
 
 load_dotenv()
 
+def set_discord_nickname(user_id: str, nickname: str) -> bool:
+    """
+    Sets the nickname of a user in the Discord server
+    
+    Args:
+        user_id: The ID of the user to set the nickname for
+        nickname: The new nickname to set for the user
+        
+    Returns:
+        True if the nickname was set successfully, False otherwise
+    """
+    token = os.getenv("DISCORD_BOT_API_TOKEN")
+    url = os.getenv("DISCORD_BOT_API") + f"/{user_id}/set-nickname"
+    
+    json_data = {
+        "user_id": user_id,
+        "nickname": nickname,
+        "token": token
+    }
+    
+    try:
+        response = requests.post(url, json=json_data)
+        response.raise_for_status()  # Raise an exception for non-2xx status codes
+        return True
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to set Discord nickname: {str(e)}")
+        return False
+
 def create_discord_role(role_name: str, color: str = None) -> Optional[str]:
     """
     Creates a new role in the Discord server
@@ -38,8 +66,10 @@ def create_discord_role(role_name: str, color: str = None) -> Optional[str]:
         return None
 
 def create_discord_text_channel(
-    channel_name: str, 
-    team_role_id: str
+    channel_name: str,
+    category: str = "Events",
+    role_id_list: List[str] = None,
+    user_id_list: List[str] = None
 ) -> Optional[str]:
     """
     Creates a new text channel in the Discord server with specific permissions
@@ -47,7 +77,8 @@ def create_discord_text_channel(
     Args:
         channel_name: The name of the text channel to create
         category_id: The category ID to place the channel under
-        team_role_id: The role ID that can see this channel
+        role_id_list: List of role IDs that can view and access the channel
+        user_id_list: Optional list of user IDs that can view and access the channel
         
     Returns:
         The ID of the created channel on success, None on failure
@@ -55,14 +86,13 @@ def create_discord_text_channel(
     token = os.getenv("DISCORD_BOT_API_TOKEN")
     url = os.getenv("DISCORD_BOT_API") + "/channels/create-text"
     
-    # Get category name from category ID (assuming we already have it)
-    category_name = "Events"  # Default to "events" if we can't determine it
-    
     json_data = {
-        "category_name": category_name,
+        "category_name": category,
         "channel_name": channel_name,
-        "view_roles": [team_role_id],  # Only team role can view
-        "access_roles": [team_role_id],  # Only team role can access
+        "view_roles": role_id_list,  # Only team role can view
+        "access_roles": role_id_list,  # Only team role can access
+        "view_users": user_id_list if user_id_list else [],  # Optional: users who can view
+        "access_users": user_id_list if user_id_list else [],  # Optional: users who can access
         "token": token
     }
     
