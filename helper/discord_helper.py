@@ -68,8 +68,8 @@ def create_discord_role(role_name: str, color: str = None) -> Optional[str]:
 def create_discord_text_channel(
     channel_name: str,
     category: str = "Events",
-    role_id_list: List[str] = None,
-    user_id_list: List[str] = None
+    role_name_list: List[str] = None,
+    user_id_list: List[int] = None
 ) -> Optional[str]:
     """
     Creates a new text channel in the Discord server with specific permissions
@@ -89,8 +89,8 @@ def create_discord_text_channel(
     json_data = {
         "category_name": category,
         "channel_name": channel_name,
-        "view_roles": role_id_list,  # Only team role can view
-        "access_roles": role_id_list,  # Only team role can access
+        "view_roles": role_name_list,  # Only team role can view
+        "access_roles": role_name_list,  # Only team role can access
         "view_users": user_id_list if user_id_list else [],  # Optional: users who can view
         "access_users": user_id_list if user_id_list else [],  # Optional: users who can access
         "token": token

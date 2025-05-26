@@ -65,7 +65,7 @@ def create_team(event_id):
         text_channel_name = f"{data['name'].lower().replace(' ', '-')}" 
         voice_channel_name = data['name']
         
-        text_channel_id = create_discord_text_channel(channel_name=text_channel_name, role_id_list=[role_id])
+        text_channel_id = create_discord_text_channel(channel_name=text_channel_name, role_name_list=[role_id])
         if not text_channel_id:
             return jsonify({"error": "Failed to create Discord text channel for team"}), 500
         
