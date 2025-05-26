@@ -2,6 +2,7 @@ from app import app, db
 from helper.helpers import ModelEncoder
 from helper.time_utils import parse_time_to_seconds
 from helper.set_discord_role import *
+from helper.discord_helper import create_discord_text_channel, set_discord_nickname
 from flask import request
 from models.models import ClanApplications, Users, RaidTierApplication, RaidTiers, RaidTierLog
 from models.models import DiaryApplications, DiaryTasks, ClanPointsLog, DiaryCompletionLog
@@ -70,6 +71,8 @@ def create_application():
     db.session.commit()
     add_discord_role(user, "Applied")
     remove_discord_roles(user, ["Guest", "Applicant"])
+    set_discord_nickname(user.discord_id, data.runescape_name)
+    create_discord_text_channel(channel_name=f"{data.runescape_name}-application", category="Applications", role_id_list=["Staff"], user_id_list=[data.user_id])
     return json.dumps(data.serialize(), cls=ModelEncoder)
 
 @app.route("/applications/<id>", methods=['GET'])
@@ -118,13 +121,6 @@ def accept_application(id):
     remove_discord_roles(user, ["Guest", "Applied", "Applicant"])
     user.is_member = True
     user.join_date = datetime.datetime.now(datetime.timezone.utc)
-
-    increment_clan_points(
-        user_id=user.discord_id,
-        points=10,  # Example points for accepting an application
-        tag=PointTag.EVENT,
-        message="Application Accepted"
-    )
 
     db.session.commit()
     return "Application accepted", 200

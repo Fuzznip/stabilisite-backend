@@ -4,7 +4,7 @@ from models.models import Events, EventTeams, EventTeamMemberMappings, Users
 from models.stability_party_3 import SP3Regions, SP3EventTiles, SP3EventTileChallengeMapping
 from event_handlers.stability_party.stability_party_handler import SaveData, save_team_data
 from sqlalchemy.orm.attributes import flag_modified
-from helper.discord_helper import create_discord_role, create_discord_text_channel, create_discord_voice_channel, get_event_category_id
+from helper.discord_helper import create_discord_role, create_discord_text_channel, create_discord_voice_channel
 from helper.set_discord_role import add_discord_role
 import uuid
 import logging
@@ -65,7 +65,7 @@ def create_team(event_id):
         text_channel_name = f"{data['name'].lower().replace(' ', '-')}" 
         voice_channel_name = data['name']
         
-        text_channel_id = create_discord_text_channel(text_channel_name, role_id)
+        text_channel_id = create_discord_text_channel(channel_name=text_channel_name, role_id_list=[role_id])
         if not text_channel_id:
             return jsonify({"error": "Failed to create Discord text channel for team"}), 500
         
