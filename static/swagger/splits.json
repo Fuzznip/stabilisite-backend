@@ -127,6 +127,30 @@
             "description": "Split not found"
           }
         }
+      },
+      "delete": {
+        "tags": ["splits"],
+        "summary": "Delete split",
+        "description": "Deletes a split from the system",
+        "parameters": [
+          {
+            "name": "splitId",
+            "in": "path",
+            "description": "ID of the split to delete",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Split deleted successfully"
+          },
+          "404": {
+            "description": "Split not found"
+          }
+        }
       }
     }
   },
