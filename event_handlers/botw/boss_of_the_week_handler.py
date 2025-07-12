@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from app import db
 from event_handlers.event_handler import EventSubmission, NotificationResponse, NotificationAuthor
 from models.models import Events
@@ -32,7 +33,15 @@ item_point_dict = {
 
 def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
     # Grab the most recent 'Boss of the Week' event
-    event = Events.query.filter(Events.type == "BOSS_OF_THE_WEEK").first()
+    now = datetime.now(timezone.utc)
+    event = Events.query.filter(
+        Events.start_time <= now, 
+        Events.end_time >= now, 
+        Events.type == "BOSS_OF_THE_WEEK"
+    ).first()
+
+    if event is None:
+        return None # Or an empty list
 
     if submission.type not in ["KC", "DROP"]:
         return None
