@@ -43,19 +43,20 @@ def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
     if event is None:
         return None # Or an empty list
 
-    if submission.type not in ["KC", "DROP"]:
+    if submission.type not in ["KC", "LOOT"]:
         return None
 
     if submission.type == "KC":
         # Check if the trigger is in the kc_point_dict
         if submission.trigger.lower() in kc_point_dict:
+            new_points = event.data.get(submission.rsn, 0) + kc_point_dict[submission.trigger.lower()]
             # Use the helper function to modify event.data
-            update_jsonb_field(event, "data", lambda data: data.update({submission.rsn: data.get("points", 0) + kc_point_dict[submission.trigger.lower()]}))
+            update_jsonb_field(event, "data", lambda data: data.update({submission.rsn: new_points}))
 
             db.session.commit()
 
             return None # Dont post notification for KC submissions
-    elif submission.type == "DROP":
+    elif submission.type == "LOOT":
         # Check if the item is in the item_point_dict
         if submission.trigger.lower() in item_point_dict and submission.source.lower() in kc_point_dict:
             new_points = event.data.get(submission.rsn, 0) + item_point_dict[submission.trigger.lower()]
