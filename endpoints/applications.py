@@ -4,7 +4,7 @@ from helper.time_utils import parse_time_to_seconds
 from helper.set_discord_role import *
 from helper.discord_helper import create_discord_text_channel, set_discord_nickname
 from flask import request
-from models.models import ClanApplications, Users, RaidTierApplication, RaidTiers, RaidTierLog
+from models.models import ClanApplications, Users, RaidTierApplication, RaidTiers, RaidTierLog, ClanRanks, RankApplications
 from models.models import DiaryApplications, DiaryTasks, ClanPointsLog, DiaryCompletionLog
 from helper.clan_points_helper import increment_clan_points, PointTag
 import json, datetime
@@ -637,5 +637,133 @@ def reject_application_raid_tier(id):
     else:
         application.verdict_reason = body["reason"]
     application.verdict_timestamp = datetime.datetime.now(datetime.timezone.utc)
+    db.session.commit()
+    return "Application rejected", 200
+
+@app.route("/applications/rank/", methods=['GET'])
+def get_rank_applications():
+    params = request.args
+    filter = params.get('filter')
+    discord_id = params.get('discord_id')
+
+    if filter is not None:
+        applications = ClanRanks.query.filter_by(status=filter).all()
+    elif discord_id is not None:
+        applications = ClanRanks.query.filter_by(user_id=discord_id).all()
+    else:
+        applications = ClanRanks.query.all()
+
+    data = []
+    for row in applications:
+        data.append(row.serialize())
+    return data
+
+@app.route("/applications/rank/", methods=['POST'])
+def create_rank_application():
+    body = request.get_json()
+    if body is None:
+        return "Invalid request", 400
+
+    # Check to see if user currently has a rank application for this rank
+    existing_application = RankApplications.query.filter_by(user_id=body.get("user_id"), rank=body.get("rank")).first()
+    if existing_application is not None and existing_application.status == "Pending":
+        return "User already has a pending application for this rank", 400
+    if existing_application is not None:
+        return "User already has an application for this rank", 400
+
+    # Check to see if user is already a member of this rank or higher
+    user: Users = Users.query.filter_by(discord_id=body.get("user_id")).first()
+    if user is None:
+        return "User not found", 404
+    if user.rank == body.get("rank") or user.rank_order >= body.get("rank_order"):
+        return "User is already a member of this rank or higher", 400
+    
+    # Check to see if the rank exists
+    rank: ClanRanks = ClanRanks.query.filter_by(rank=body.get("rank")).first()
+    if rank is None:
+        return "Rank not found", 404
+    # Get the user's current rank
+    user_rank: ClanRanks = ClanRanks.query.filter_by(rank=user.rank).first()
+    if rank.rank_order <= user_rank.rank_order:
+        return "Rank is lower than current rank", 400
+    
+    # Check to see if they have the minimum points for the rank
+    if user.rank_points < rank.rank_minimum_points:
+        return "User does not have enough points for this rank", 400 
+    
+    # Check to see if the user has been in the clan for the minimum time
+    if user.join_date is None:
+        return "User has not joined the clan", 400
+    
+    if (datetime.datetime.now(datetime.timezone.utc) - user.join_date).days < rank.rank_minimum_days:
+        return f"Rank requires a minimum of {rank.rank_minimum_days} days in the clan, user has {(datetime.datetime.now(datetime.timezone.utc) - user.join_date).days} days", 400
+
+    application = RankApplications()
+    application.user_id = body.get("user_id")
+    application.runescape_name = user.runescape_name
+    application.rank = body.get("rank")
+    application.rank_order = body.get("rank_order")
+    application.proof = body.get("proof", [])
+    application.status = "Pending"
+    application.timestamp = datetime.datetime.now(datetime.timezone.utc)
+    db.session.add(application)
+    db.session.commit()
+    
+    return "Application created", 201
+
+@app.route("/applications/rank/<id>", methods=['GET'])
+def get_rank_application(id):
+    application = RankApplications.query.filter_by(id=id).first()
+    if application is None:
+        return "Application not found", 404
+    return json.dumps(application.serialize(), cls=ModelEncoder)
+
+@app.route("/applications/rank/<id>/accept", methods=['PUT'])
+def accept_rank_application(id):
+    # Check if application exists
+    application = RankApplications.query.filter_by(id=id).first()
+    if application is None:
+        return "Application not found", 404
+    
+    # Check if application is pending
+    if application.status != "Pending":
+        return "Application is not pending", 400
+    
+    # Check if user exists
+    user = Users.query.filter_by(discord_id=application.user_id).first()
+    if user is None:
+        return "User not found", 404
+    # Check if user is already a member of this rank or higher
+    if user.rank == application.rank or user.rank_order >= application.rank_order:
+        return "User is already a member of this rank or higher", 400
+
+    # Update application status
+    application.status = "Accepted"
+    # Set user rank
+    old_rank = user.rank
+    user.rank = application.rank
+    user.rank_order = application.rank_order
+
+    # Remove old rank discord role
+    remove_discord_roles(user, [old_rank])
+    # Add new rank discord role
+    add_discord_roles(user, [user.rank])
+
+    db.session.commit()
+    return "Application accepted", 200
+
+@app.route("/applications/rank/<id>/reject", methods=['PUT'])
+def reject_rank_application(id):
+    # Check if application exists
+    application = RankApplications.query.filter_by(id=id).first()
+    if application is None:
+        return "Application not found", 404
+
+    # Check if application is pending
+    if application.status != "Pending":
+        return "Application is not pending", 400
+
+    # Update application status
+    application.status = "Rejected"
     db.session.commit()
     return "Application rejected", 200
