@@ -2,10 +2,10 @@ from event_handlers.event_handler import EventHandler
 from event_handlers.dink_test.gnome_child_bone_handler import gnome_child_bone_handler
 from event_handlers.stability_party.stability_party_handler import stability_party_handler
 from event_handlers.botw.boss_of_the_week_handler import botw_handler
-from event_handlers.raid_weekend import raid_weekend_handler
+from event_handlers.raid_weekend.raid_weekend_handler import raid_weekend_event_handler
 
 # Register your event handlers here
 EventHandler.register_handler(gnome_child_bone_handler)
 EventHandler.register_handler(stability_party_handler)
 EventHandler.register_handler(botw_handler)
-EventHandler.register_handler(raid_weekend_handler)
+EventHandler.register_handler(raid_weekend_event_handler)
