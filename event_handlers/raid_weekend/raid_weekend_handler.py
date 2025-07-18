@@ -35,8 +35,8 @@ whitelist = [
     "tumeken's shadow (uncharged)"
 ]
 
-def raid_weekend_handler(submission: EventSubmission) -> list[NotificationResponse]:
-    # Grab the most recent 'Boss of the Week' event
+def raid_weekend_event_handler(submission: EventSubmission) -> list[NotificationResponse]:
+    # Grab the most recent 'Raid Weekend' event
     now = datetime.now(timezone.utc)
     event = Events.query.filter(
         Events.start_time <= now, 
