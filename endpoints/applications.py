@@ -647,11 +647,11 @@ def get_rank_applications():
     discord_id = params.get('discord_id')
 
     if filter is not None:
-        applications = ClanRanks.query.filter_by(status=filter).all()
+        applications = RankApplications.query.filter_by(status=filter).all()
     elif discord_id is not None:
-        applications = ClanRanks.query.filter_by(user_id=discord_id).all()
+        applications = RankApplications.query.filter_by(user_id=discord_id).all()
     else:
-        applications = ClanRanks.query.all()
+        applications = RankApplications.query.all()
 
     data = []
     for row in applications:
