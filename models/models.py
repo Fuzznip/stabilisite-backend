@@ -128,7 +128,7 @@ class RankApplications(db.Model, Serializer):
     status = db.Column(db.String, default='Pending')
     verdict_reason = db.Column(db.Text)
     verdict_timestamp = db.Column(db.DateTime)
-    timestamp = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
+    timestamp = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
 
     def serialize(self):
         return Serializer.serialize(self)
