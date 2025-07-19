@@ -701,15 +701,14 @@ def create_rank_application():
     application = RankApplications()
     application.user_id = body.get("user_id")
     application.runescape_name = user.runescape_name
-    application.rank = body.get("rank")
-    application.rank_order = body.get("rank_order")
+    application.desired_rank = body.get("rank")
     application.proof = body.get("proof", [])
     application.status = "Pending"
     application.timestamp = datetime.datetime.now(datetime.timezone.utc)
     db.session.add(application)
     db.session.commit()
     
-    return "Application created", 201
+    return json.dumps(application.serialize(), cls=ModelEncoder), 201
 
 @app.route("/applications/rank/<id>", methods=['GET'])
 def get_rank_application(id):
