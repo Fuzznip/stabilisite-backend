@@ -675,15 +675,18 @@ def create_rank_application():
     user: Users = Users.query.filter_by(discord_id=body.get("user_id")).first()
     if user is None:
         return "User not found", 404
-    if user.rank == body.get("rank") or user.rank_order >= body.get("rank_order"):
+    
+    user_rank: ClanRanks = ClanRanks.query.filter_by(rank=user.rank).first()
+    if user_rank is None:
+        return "User Rank not found", 404
+    
+    if user_rank.rank_name == body.get("rank") or user_rank.rank_order >= body.get("rank_order"):
         return "User is already a member of this rank or higher", 400
     
     # Check to see if the rank exists
     rank: ClanRanks = ClanRanks.query.filter_by(rank=body.get("rank")).first()
     if rank is None:
         return "Rank not found", 404
-    # Get the user's current rank
-    user_rank: ClanRanks = ClanRanks.query.filter_by(rank=user.rank).first()
     if rank.rank_order <= user_rank.rank_order:
         return "Rank is lower than current rank", 400
     
