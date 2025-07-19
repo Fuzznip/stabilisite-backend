@@ -705,7 +705,7 @@ def create_rank_application():
     application.user_id = body.get("user_id")
     application.runescape_name = user.runescape_name
     application.desired_rank = body.get("rank")
-    application.proof = body.get("proof", [])
+    application.proof = body.get("proof")
     application.status = "Pending"
     application.timestamp = datetime.datetime.now(datetime.timezone.utc)
     db.session.add(application)
