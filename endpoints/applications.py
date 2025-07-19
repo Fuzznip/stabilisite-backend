@@ -658,7 +658,7 @@ def get_rank_applications():
         data.append(row.serialize())
     return data
 
-@app.route("/applications/rank/", methods=['POST'])
+@app.route("/applications/rank", methods=['POST'])
 def create_rank_application():
     body = request.get_json()
     if body is None:
