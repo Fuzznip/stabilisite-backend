@@ -640,7 +640,7 @@ def reject_application_raid_tier(id):
     db.session.commit()
     return "Application rejected", 200
 
-@app.route("/applications/rank/", methods=['GET'])
+@app.route("/applications/rank", methods=['GET'])
 def get_rank_applications():
     params = request.args
     filter = params.get('filter')
