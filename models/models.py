@@ -124,7 +124,7 @@ class RankApplications(db.Model, Serializer):
     user_id = db.Column(db.String)
     runescape_name = db.Column(db.String, nullable=False)
     desired_rank = db.Column(db.String, nullable=False)
-    proof = db.Column(ARRAY(db.String))
+    proof = db.Column(db.String)
     status = db.Column(db.String, default='Pending')
     verdict_reason = db.Column(db.Text)
     verdict_timestamp = db.Column(db.DateTime)
