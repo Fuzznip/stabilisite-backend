@@ -698,8 +698,9 @@ def create_rank_application():
     if user.join_date is None:
         return "User has not joined the clan", 400
     
-    if (datetime.datetime.now(datetime.timezone.utc) - user.join_date).days < rank.rank_minimum_days:
-        return f"Rank requires a minimum of {rank.rank_minimum_days} days in the clan, user has {(datetime.datetime.now(datetime.timezone.utc) - user.join_date).days} days", 400
+    tz_aware_join_date = user.join_date.replace(tzinfo=datetime.timezone.utc)
+    if (datetime.datetime.now(datetime.timezone.utc) - tz_aware_join_date).days < rank.rank_minimum_days:
+        return f"Rank requires a minimum of {rank.rank_minimum_days} days in the clan, user has {(datetime.datetime.now(datetime.timezone.utc) - tz_aware_join_date).days} days", 400
 
     application = RankApplications()
     application.user_id = body.get("user_id")
