@@ -7,6 +7,9 @@ def add_discord_role(user, role):
     """
     Adds the discord role for a user
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+    
     if user is None or not user.is_active:
         return "Could not find User", 404
     
@@ -24,6 +27,9 @@ def add_discord_roles(user, roles):
     """
     Adds the discord roles for a user
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+    
     if user is None or not user.is_active:
         return "Could not find User", 404
     
@@ -41,6 +47,9 @@ def remove_discord_role(user, role):
     """
     Removes the discord role for a user
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+    
     if user is None or not user.is_active:
         return "Could not find User", 404
     
@@ -58,6 +67,9 @@ def remove_discord_roles(user, roles):
     """
     Removes the discord roles for a user
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+    
     if user is None or not user.is_active:
         return "Could not find User", 404
     
