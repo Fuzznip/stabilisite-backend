@@ -665,7 +665,7 @@ def create_rank_application():
         return "Invalid request", 400
 
     # Check to see if user currently has a rank application for this rank
-    existing_application = RankApplications.query.filter_by(user_id=body.get("user_id"), rank=body.get("desired_rank")).first()
+    existing_application = RankApplications.query.filter_by(user_id=body.get("user_id"), desired_rank=body.get("rank")).first()
     if existing_application is not None and existing_application.status == "Pending":
         return "User already has a pending application for this rank", 400
     if existing_application is not None:
