@@ -735,7 +735,9 @@ def accept_rank_application(id):
     if user is None:
         return "User not found", 404
     # Check if user is already a member of this rank or higher
-    if user.rank == application.rank or user.rank_order >= application.rank_order:
+    user_rank: ClanRanks = ClanRanks.query.filter_by(rank_name=user.rank).first()
+    desired_rank: ClanRanks = ClanRanks.query.filter_by(rank_name=application.desired_rank).first()
+    if user.rank == application.desired_rank or (user_rank is not None and desired_rank is not None and user_rank.rank_order >= desired_rank.rank_order):
         return "User is already a member of this rank or higher", 400
 
     # Update application status
