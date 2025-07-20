@@ -665,7 +665,7 @@ def create_rank_application():
         return "Invalid request", 400
 
     # Check to see if user currently has a rank application for this rank
-    existing_application = RankApplications.query.filter_by(user_id=body.get("user_id"), desired_rank=body.get("rank")).first()
+    existing_application: RankApplications = RankApplications.query.filter_by(user_id=body.get("user_id"), desired_rank=body.get("rank")).first()
     if existing_application is not None and existing_application.status == "Pending":
         return "User already has a pending application for this rank", 400
     if existing_application is not None:
@@ -676,7 +676,7 @@ def create_rank_application():
     if user is None:
         return "User not found", 404
     
-    user_rank: ClanRanks = ClanRanks.query.filter_by(rank=user.rank).first()
+    user_rank: ClanRanks = ClanRanks.query.filter_by(rank_name=user.rank).first()
     if user_rank is None:
         return "User Rank not found", 404
     
@@ -684,7 +684,7 @@ def create_rank_application():
         return "User is already a member of this rank or higher", 400
     
     # Check to see if the rank exists
-    rank: ClanRanks = ClanRanks.query.filter_by(rank=body.get("rank")).first()
+    rank: ClanRanks = ClanRanks.query.filter_by(rank_name=body.get("rank")).first()
     if rank is None:
         return "Rank not found", 404
     if rank.rank_order <= user_rank.rank_order:
@@ -723,7 +723,7 @@ def get_rank_application(id):
 @app.route("/applications/rank/<id>/accept", methods=['PUT'])
 def accept_rank_application(id):
     # Check if application exists
-    application = RankApplications.query.filter_by(id=id).first()
+    application: RankApplications = RankApplications.query.filter_by(id=id).first()
     if application is None:
         return "Application not found", 404
     
@@ -732,7 +732,7 @@ def accept_rank_application(id):
         return "Application is not pending", 400
     
     # Check if user exists
-    user = Users.query.filter_by(discord_id=application.user_id).first()
+    user: Users = Users.query.filter_by(discord_id=application.user_id).first()
     if user is None:
         return "User not found", 404
     # Check if user is already a member of this rank or higher
@@ -743,8 +743,7 @@ def accept_rank_application(id):
     application.status = "Accepted"
     # Set user rank
     old_rank = user.rank
-    user.rank = application.rank
-    user.rank_order = application.rank_order
+    user.rank = application.desired_rank
 
     # Remove old rank discord role
     remove_discord_roles(user, [old_rank])
