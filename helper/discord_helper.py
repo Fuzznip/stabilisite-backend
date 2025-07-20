@@ -17,6 +17,9 @@ def set_discord_nickname(user_id: str, nickname: str) -> bool:
     Returns:
         True if the nickname was set successfully, False otherwise
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+
     token = os.getenv("DISCORD_BOT_API_TOKEN")
     url = os.getenv("DISCORD_BOT_API") + f"/{user_id}/set-nickname"
     
@@ -45,6 +48,9 @@ def create_discord_role(role_name: str, color: str = None) -> Optional[str]:
     Returns:
         The ID of the created role on success, None on failure
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+    
     token = os.getenv("DISCORD_BOT_API_TOKEN")
     url = os.getenv("DISCORD_BOT_API") + "/roles/create"
     
@@ -83,6 +89,9 @@ def create_discord_text_channel(
     Returns:
         The ID of the created channel on success, None on failure
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+    
     token = os.getenv("DISCORD_BOT_API_TOKEN")
     url = os.getenv("DISCORD_BOT_API") + "/channels/create-text"
     
@@ -120,6 +129,9 @@ def create_discord_voice_channel(
     Returns:
         The ID of the created channel on success, None on failure
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+    
     token = os.getenv("DISCORD_BOT_API_TOKEN")
     url = os.getenv("DISCORD_BOT_API") + "/channels/create-voice"
     
@@ -150,6 +162,9 @@ def get_event_category_id() -> Optional[str]:
     Returns:
         The ID of the events category if found, None otherwise
     """
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+    
     token = os.getenv("DISCORD_BOT_API_TOKEN")
     url = os.getenv("DISCORD_BOT_API") + "/channels/list"
     
