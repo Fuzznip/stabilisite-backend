@@ -668,8 +668,6 @@ def create_rank_application():
     existing_application: RankApplications = RankApplications.query.filter_by(user_id=body.get("user_id"), desired_rank=body.get("rank")).first()
     if existing_application is not None and existing_application.status == "Pending":
         return "User already has a pending application for this rank", 400
-    if existing_application is not None:
-        return "User already has an application for this rank", 400
 
     # Check to see if user is already a member of this rank or higher
     user: Users = Users.query.filter_by(discord_id=body.get("user_id")).first()
