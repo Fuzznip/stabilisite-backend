@@ -9,6 +9,8 @@ kc_point_dict = {
     "corrupted hunllef": 2,
     "crystalline hunllef": 1,
     "the gauntlet": 0,
+    "corrupted gauntlet": 0,
+    "gauntlet": 0,
 }
 
 item_point_dict = {
