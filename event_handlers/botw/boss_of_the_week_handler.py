@@ -6,29 +6,15 @@ from helper.jsonb import update_jsonb_field
 import random
 
 kc_point_dict = {
-    "spindel": 1,
-    "artio": 1,
-    "calvar'ion": 1,
-    "venenatis": 1,
-    "vet'ion": 1,
-    "callisto": 1,
+    "corrupted hunllef": 2,
+    "crystalline hunllef": 1,
 }
 
 item_point_dict = {
-    "dragon pickaxe": 20,
-    "dragon 2h sword": 20,
-    "claws of callisto": 20,
-    "fangs of venenatis": 20,
-    "skull of vet'ion": 20,
-    "treasonous ring": 50,
-    "ring of the gods": 50,
-    "tyrannical ring": 50,
-    "voidwaker hilt": 30,
-    "voidwaker blade": 30,
-    "voidwaker gem": 30,
-    "vet'ion jr.": 100,
-    "callisto cub": 100,
-    "venenatis spiderling": 100,
+    "crystal weapon seed": 20,
+    "crystal armour seed": 25,
+    "enhanced crystal weapon seed": 60,
+    "youngllef": 80,
 }
 
 def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
@@ -69,7 +55,7 @@ def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
                 threadId=event.thread_id,
                 title=f"{submission.rsn} has received a {submission.trigger} for {item_point_dict[submission.trigger.lower()]} points!",
                 color=0xFF0055,
-                thumbnailImage="https://oldschool.runescape.wiki/images/Wilderness.png?ed6e2",
+                thumbnailImage="https://i.imgur.com/55RLPmc.png",
                 author=NotificationAuthor(name=f"{submission.rsn}"),
                 description=f"Their current point total is now {new_points} points."
             )]
