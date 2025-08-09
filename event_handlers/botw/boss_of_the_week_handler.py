@@ -8,6 +8,7 @@ import random
 kc_point_dict = {
     "corrupted hunllef": 2,
     "crystalline hunllef": 1,
+    "the gauntlet": 0,
 }
 
 item_point_dict = {
@@ -31,6 +32,8 @@ def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
 
     if submission.type not in ["KC", "LOOT"]:
         return None
+    
+    print(f"Processing submission: {submission}")
 
     if submission.type == "KC":
         # Check if the trigger is in the kc_point_dict
@@ -44,6 +47,8 @@ def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
             return None # Dont post notification for KC submissions
     elif submission.type == "LOOT":
         # Check if the item is in the item_point_dict
+        print(submission.trigger.lower())
+        print(submission.source.lower())
         if submission.trigger.lower() in item_point_dict and submission.source.lower() in kc_point_dict:
             new_points = event.data.get(submission.rsn, 0) + item_point_dict[submission.trigger.lower()]
             # Use the helper function to modify event.data
