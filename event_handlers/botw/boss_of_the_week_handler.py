@@ -34,6 +34,9 @@ def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
         return None
     
     print(f"Processing submission: {submission}")
+    print(f"Submission type: {submission.type}")
+    print(f"Submission trigger: {submission.trigger}")
+    print(f"Submission source: {submission.source}")
 
     if submission.type == "KC":
         # Check if the trigger is in the kc_point_dict
