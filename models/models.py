@@ -358,3 +358,19 @@ class EventTriggers(db.Model, Serializer):
     
     def serialize(self):
         return Serializer.serialize(self)
+
+class EventLog(db.Model, Serializer):
+    __tablename__ = 'event_log'
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('events.id', ondelete="CASCADE"))  # Cascade delete
+    rsn = db.Column(db.String)
+    discord_id = db.Column(db.String)
+    trigger = db.Column(db.String, nullable=False)
+    source = db.Column(db.String)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    type = db.Column(db.String, nullable=False) # enum: "DROP", "KC"
+    value = db.Column(db.Integer, nullable=False, default=1)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+
+    def serialize(self):
+        return Serializer.serialize(self)
