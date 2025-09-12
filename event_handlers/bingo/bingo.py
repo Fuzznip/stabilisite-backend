@@ -106,5 +106,5 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
 
     return [NotificationResponse(
         author=NotificationAuthor.SYSTEM,
-        message="No active Bingo event found."
+        message="This message should never be seen. @funzip"
     )]
