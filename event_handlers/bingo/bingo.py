@@ -41,7 +41,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     player = EventTeamMemberMappings.query.join(EventTeams).filter(
         EventTeams.event_id == event.id,
         (
-            func.lower(EventTeamMemberMappings.rsn) == username.lower()
+            func.lower(EventTeamMemberMappings.username) == username.lower()
         ) | (
             func.lower(EventTeamMemberMappings.discord_id) == str(discord_id).lower()
         )
