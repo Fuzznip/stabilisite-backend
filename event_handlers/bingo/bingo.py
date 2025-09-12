@@ -57,40 +57,32 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         return []
     
     team_data: BingoTeam = BingoTeam(**team.data)
-    
-    # Check to see if the submission matches any triggers for the event
-    trigger = EventTriggerMappings.query.join(EventTasks).join(EventChallenges).filter(
-        EventChallenges.event_id == event.id,
-        EventTasks.id == trigger.task_id,
-        EventChallenges.id == trigger.challenge_id,
-        (EventTasks.type == "BINGO" ) & (EventTasks.status == "ACTIVE")
-    ).first()
 
-    if trigger is None:
-        return []
-
-    # Find the tile that this submission applies to
-    # Grab all of the tasks that this trigger is referenced by
-    tasks = EventTasks.query.filter(EventTasks.triggers.contains([trigger.id])).all()
-    if not tasks:
-        logging.error(f"No tasks found for trigger ID {trigger.id} in Bingo event {event.id}.\nSubmission: {submission}")
-        return []
+    # ensure default values for missing fields
+    if not hasattr(team_data, 'points'):
+        team_data.points = 0
+    if not hasattr(team_data, 'board_state'):
+        team_data.board_state = [0] * 25  # Assuming a 5x5 board
+    if not hasattr(team_data, 'board_progress'):
+        team_data.board_progress = []
+    if not hasattr(team_data, 'members'):
+        team_data.members = []
+    if not hasattr(team_data, 'image_url'):
+        team_data.image_url = ""
+    if not hasattr(team_data, 'name'):
+        team_data.name = "Unnamed Team"
+    if not hasattr(team_data, 'team_id'):
+        team_data.team_id = str(team.id)
     
-    # Grab all of the challenges for those tasks
-    challenges = EventChallenges.query.filter(EventChallenges.id.in_([task.challenge_id for task in tasks])).all()
-    if not challenges:
-        logging.error(f"No challenges found for tasks {[task.id for task in tasks]} in Bingo event {event.id}.\nSubmission: {submission}")
-        return []
-    
-    # Find the tasks that have those challenges
-    tasks = BingoChallenges.query.filter(BingoChallenges.id.in_([challenge.id for challenge in challenges])).all()
-    if not tasks:
-        logging.error(f"No Bingo tasks found for challenges {[challenge.id for challenge in challenges]} in Bingo event {event.id}.\nSubmission: {submission}")
-        return []
-    
-    for task in tasks:
-        tile = BingoTiles.query.filter_by(id=task.tile_id).first()
-        # Update the team's board state
+    # # Get all tiles for the event
+    # tiles = BingoTiles.query.filter_by(event_id=event.id).all()
+    # for tile in tiles:
+    #     # Check all challenges for the tile
+    #     tile_challenges = BingoChallenges.query.filter_by(tile_id=tile.id).all()
+    #     for tile_challenge in tile_challenges:
+    #         # If the challenge is not already in the team data, add it
+    #         if tile_challenge.id not in team_data.challenges:
+    #             team_data.challenges[tile_challenge.id] = tile_challenge.challenges
 
     # save the team data back to the database
     team.data = team_data.__dict__
