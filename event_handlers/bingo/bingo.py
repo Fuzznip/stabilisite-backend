@@ -90,7 +90,9 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     team.data = team_data.__dict__
     db.session.commit()
 
+    return []
+
     return [NotificationResponse(
         author="stability itself",
-        message="This message should never be seen. @funzip"
+        title="This message should never be seen. @funzip"
     )]
