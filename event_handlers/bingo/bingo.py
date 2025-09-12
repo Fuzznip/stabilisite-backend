@@ -56,7 +56,9 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         logging.error(f"Team with ID {player.team_id} not found for player {player.rsn} in Bingo event {event.id}.\nSubmission: {submission}")
         return []
     
-    team_data: BingoTeam = BingoTeam(**team.data)
+    team_data: BingoTeam = BingoTeam()
+    for key, value in team.data.items():
+        setattr(team_data, key, value)
 
     # ensure default values for missing fields
     if not hasattr(team_data, 'points'):
@@ -89,6 +91,6 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     db.session.commit()
 
     return [NotificationResponse(
-        author=NotificationAuthor.SYSTEM,
+        author="stability itself",
         message="This message should never be seen. @funzip"
     )]
