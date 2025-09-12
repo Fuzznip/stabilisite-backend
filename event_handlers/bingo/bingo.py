@@ -51,6 +51,13 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         logging.info(f"User {submission.rsn} (ID: {submission.id}) is not a participant in the Bingo event.")
         return []
     
+    team = EventTeams.query.filter_by(id=player.team_id).first()
+    if team is None:
+        logging.error(f"Team with ID {player.team_id} not found for player {player.rsn} in Bingo event {event.id}.\nSubmission: {submission}")
+        return []
+    
+    team_data: BingoTeam = BingoTeam(**team.data)
+    
     # Check to see if the submission matches any triggers for the event
     trigger = EventTriggerMappings.query.join(EventTasks).join(EventChallenges).filter(
         EventChallenges.event_id == event.id,
@@ -81,24 +88,9 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         logging.error(f"No Bingo tasks found for challenges {[challenge.id for challenge in challenges]} in Bingo event {event.id}.\nSubmission: {submission}")
         return []
     
-    # Find the tiles that have those tasks
-    tiles = BingoTiles.query.filter(BingoTiles.id.in_([task.tile_id for task in tasks])).all()
-    if not tiles:
-        logging.error(f"No Bingo tiles found for tasks {[task.id for task in tasks]} in Bingo event {event.id}.\nSubmission: {submission}")
-        return []
-    
-    # Update the team's board state
-    team = EventTeams.query.filter_by(id=player.team_id).first()
-    if team is None:
-        logging.error(f"Team with ID {player.team_id} not found for player {player.rsn} in Bingo event {event.id}.\nSubmission: {submission}")
-        return []
-    
-    team_data: BingoTeam = BingoTeam(**team.data)
-    
-    # # Iterate through the tasks and update progress
-    # for tile in tiles:
-
-
+    for task in tasks:
+        tile = BingoTiles.query.filter_by(id=task.tile_id).first()
+        # Update the team's board state
 
     # save the team data back to the database
     team.data = team_data.__dict__
