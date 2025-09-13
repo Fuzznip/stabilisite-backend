@@ -13,72 +13,57 @@ from sqlalchemy import func
 def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress, tile: BingoTiles, team_data: BingoTeam) -> BingoTileProgress | None:
     new_tile_progress: BingoTileProgress = tile_progress
 
-    # Creat a BingoTile object from the database tile
-    db_tile: BingoTile = BingoTile()
-    db_tile.tile_id = tile.index
-    db_tile.name = tile.name
-    db_tile.tasks = []
-    for task_data in tile.data.get("tasks", []):
-        task = BingoTask()
-        task.task_id = task_data.get("task_id")
-        task.task = task_data.get("task")
-        task.required = task_data.get("required", 1)
-        task.triggers = task_data.get("triggers", [])
-        db_tile.tasks.append(task)
-    
-    # Loop through each task in the tile
-    for task in db_tile.tasks:
-        # Grab the challenges for this task
-        challenges: list[BingoChallenges] = BingoChallenges.query.filter_by(tile_id=tile.id).all()
-        if not challenges or len(challenges) == 0:
-            logging.error(f"No challenges found for task {task.task_id}.")
-            continue
+    # Grab the tasks (bingo challenges) for this tile
+    tasks: list[BingoChallenges] = BingoChallenges.query.filter_by(tile_id=tile.id).all()
+    if not tasks or len(tasks) == 0:
+        logging.error(f"No tasks found for tile {tile.id}.")
+        return None
 
-        # Check each bingo challenge to see if the submission progresses it
-        for challenge in challenges:
-            bingo_challenge_id: str = challenge.id
-            for challenge_id in challenge.challenges:
-                # Get the event challenge
-                event_challenge: EventChallenges = EventChallenges.query.filter_by(id=challenge_id).first()
-                if event_challenge is None:
-                    logging.error(f"Event challenge {challenge_id} not found for bingo challenge {bingo_challenge_id}.")
+    # Check each bingo challenge to see if the submission progresses it
+    for task in tasks:
+        bingo_task_id: str = task.id
+        for challenge_id in task.challenges:
+            # Get the event challenge
+            event_challenge: EventChallenges = EventChallenges.query.filter_by(id=challenge_id).first()
+            if event_challenge is None:
+                logging.error(f"Event challenge {challenge_id} not found for bingo challenge {bingo_task_id}.")
+                continue
+
+            # Check if the submission's trigger matches any of the event challenge's triggers
+            # Loop through the tasks in the event challenge
+            event_tasks: list[EventTasks] = EventTasks.query.filter_by(challenge_id=event_challenge.id).all()
+            if not event_tasks or len(event_tasks) == 0:
+                logging.error(f"No tasks found for event challenge {event_challenge.id}.")
+                continue
+
+            for event_task in event_tasks:
+                # Get the triggers for the event task
+                event_triggers: list[EventTriggers] = EventTriggers.query.filter_by(task_id=event_task.id).all()
+                if not event_triggers or len(event_triggers) == 0:
+                    logging.error(f"No triggers found for event task {event_task.id}.")
                     continue
 
-                # Check if the submission's trigger matches any of the event challenge's triggers
-                # Loop through the tasks in the event challenge
-                event_tasks: list[EventTasks] = EventTasks.query.filter_by(challenge_id=event_challenge.id).all()
-                if not event_tasks or len(event_tasks) == 0:
-                    logging.error(f"No tasks found for event challenge {event_challenge.id}.")
-                    continue
+                for event_trigger in event_triggers:
+                    # Check if the submission's trigger matches the event trigger
 
-                for event_task in event_tasks:
-                    # Get the triggers for the event task
-                    event_triggers: list[EventTriggers] = EventTriggers.query.filter_by(task_id=event_task.id).all()
-                    if not event_triggers or len(event_triggers) == 0:
-                        logging.error(f"No triggers found for event task {event_task.id}.")
-                        continue
+                    # Normalize source for comparison
+                    trigger_source_norm = event_trigger.source.lower() if event_trigger.source else ""
+                    submission_source_norm = submission.source.lower() if submission.source else ""
+                    
+                    # If trigger source is empty, it can match any submission source (wildcard)
+                    # OR if trigger source is specified, it must match submission source
+                    source_matches = (not trigger_source_norm) or (trigger_source_norm == submission_source_norm)
 
-                    for event_trigger in event_triggers:
-                        # Check if the submission's trigger matches the event trigger
-
-                        # Normalize source for comparison
-                        trigger_source_norm = event_trigger.source.lower() if event_trigger.source else ""
-                        submission_source_norm = submission.source.lower() if submission.source else ""
-                        
-                        # If trigger source is empty, it can match any submission source (wildcard)
-                        # OR if trigger source is specified, it must match submission source
-                        source_matches = (not trigger_source_norm) or (trigger_source_norm == submission_source_norm)
-
-                        if event_trigger.trigger.lower() == submission.trigger.lower() and source_matches:
-                            # Progress the task
-                            # Find the corresponding task progress in the tile progress
-                            task_completed = new_tile_progress.add_task_progress(bingo_challenge_id, submission.trigger, submission.quantity)
-                            if task_completed:
-                                logging.info(f"Task {task.task_id} in tile {tile.index} completed by submission {submission}.")
-                                # Award points for completing the task
-                                team_data.points += 3
-                                team_data.board_state[tile.index] += 1
-                            break  # No need to check other triggers for this event task
+                    if event_trigger.trigger.lower() == submission.trigger.lower() and source_matches:
+                        # Progress the task
+                        # Find the corresponding task progress in the tile progress
+                        task_completed = new_tile_progress.add_task_progress(bingo_task_id, submission.trigger, submission.quantity)
+                        if task_completed:
+                            logging.info(f"Task in tile {tile.name} completed by submission {submission}.")
+                            # Award points for completing the task
+                            team_data.points += 3
+                            team_data.board_state[tile.index] += 1
+                        break  # No need to check other triggers for this event task
 
     return new_tile_progress
 
