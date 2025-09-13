@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from app import db
 from event_handlers.event_handler import EventSubmission, NotificationField, NotificationResponse, NotificationAuthor
+from event_handlers.event_handler import EventSubmission, NotificationField, NotificationResponse, NotificationAuthor
 from models.models import Events, EventTeams, EventTeamMemberMappings, EventChallenges, EventTasks, EventTriggers, EventTriggerMappings, EventLog
+from models.bingo import BingoTileProgress, BingoTaskProgress, BingoTriggerProgress, BingoTiles, BingoChallenges, BingoTeam, BingoTile, BingoTask
 from models.bingo import BingoTileProgress, BingoTaskProgress, BingoTriggerProgress, BingoTiles, BingoChallenges, BingoTeam, BingoTile, BingoTask
 from helper.jsonb import update_jsonb_field
 
