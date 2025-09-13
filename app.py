@@ -107,7 +107,7 @@ from models import models, stability_party_3, bingo
 
 # make app aware of all endpoints
 from endpoints import users, announcements, splits, applications, diary, ranks, raid_tier, discord_management
-from endpoints.events import item_whitelist, submit, sp3_moderation, sp3_game, events, items
+from endpoints.events import item_whitelist, submit, sp3_moderation, sp3_game, events, items, bingo
 
 # Initialize event handlers
 from event_handlers import event_handler_init
