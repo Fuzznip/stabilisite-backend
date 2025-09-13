@@ -51,6 +51,38 @@ class BingoTileProgress:
     name: str
     progress: list[list[BingoTaskProgress]]
 
+    def get_completed_task_count(self) -> int:
+        count = 0
+        for task_list in self.progress:
+            for task in task_list:
+                if task.completed:
+                    count += 1
+        return count
+
+    def add_task_progress(self, task_id: str, trigger: str, quantity: int | None) -> bool:
+        if quantity is None:
+            quantity = 1
+        for task_list in self.progress:
+            for task in task_list:
+                # Find the task by ID
+                if task.task_id == task_id:
+                    # Add to task progress
+                    task.value += quantity
+                    # Log the trigger
+                    # Find if the trigger already exists in the log
+                    trigger_found = False
+                    for log_entry in task.log:
+                        if log_entry.name == trigger:
+                            log_entry.value += quantity
+                            trigger_found = True
+                            break
+                    if not trigger_found:
+                        task.log.append(BingoTriggerProgress(name=trigger, value=quantity))
+                    # Check to see if the task is an OR task or an AND task
+                    
+                    return task.completed
+        return False
+
 class BingoTeam:
     team_id: str
     name: str
