@@ -32,6 +32,10 @@ class BingoTriggerProgress:
         self.name = name
         self.value = value
 
+    def __init__(self, name: str, value: int):
+        self.name = name
+        self.value = value
+
 class BingoTaskProgress:
     task_id: str
     task: str
@@ -42,6 +46,7 @@ class BingoTaskProgress:
     log: list[BingoTriggerProgress]
 
 class BingoTileProgress:
+    tile_id: str
     tile_id: str
     name: str
     progress: list[list[BingoTaskProgress]]
@@ -54,7 +59,9 @@ class BingoTileProgress:
                     count += 1
         return count
 
-    def add_task_progress(self, task_id: str, trigger: str, quantity: int) -> bool:
+    def add_task_progress(self, task_id: str, trigger: str, quantity: int | None) -> bool:
+        if quantity is None:
+            quantity = 1
         for task_list in self.progress:
             for task in task_list:
                 # Find the task by ID
