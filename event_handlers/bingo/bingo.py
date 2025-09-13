@@ -29,7 +29,7 @@ def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress,
         # Grab the challenges for this task
         challenges: list[BingoChallenges] = BingoChallenges.query.filter_by(tile_id=tile.id).all()
         if not challenges or len(challenges) == 0:
-            logging.error(f"No challenges found for task {task.task_id} in event {submission.event_id}.")
+            logging.error(f"No challenges found for task {task.task_id}.")
             continue
 
         # Check each bingo challenge to see if the submission progresses it
@@ -39,21 +39,21 @@ def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress,
                 # Get the event challenge
                 event_challenge: EventChallenges = EventChallenges.query.filter_by(id=challenge_id).first()
                 if event_challenge is None:
-                    logging.error(f"Event challenge {challenge_id} not found for bingo challenge {bingo_challenge_id} in event {submission.event_id}.")
+                    logging.error(f"Event challenge {challenge_id} not found for bingo challenge {bingo_challenge_id}.")
                     continue
 
                 # Check if the submission's trigger matches any of the event challenge's triggers
                 # Loop through the tasks in the event challenge
                 event_tasks: list[EventTasks] = EventTasks.query.filter_by(challenge_id=event_challenge.id).all()
                 if not event_tasks or len(event_tasks) == 0:
-                    logging.error(f"No tasks found for event challenge {event_challenge.id} in event {submission.event_id}.")
+                    logging.error(f"No tasks found for event challenge {event_challenge.id}.")
                     continue
 
                 for event_task in event_tasks:
                     # Get the triggers for the event task
                     event_triggers: list[EventTriggers] = EventTriggers.query.filter_by(task_id=event_task.id).all()
                     if not event_triggers or len(event_triggers) == 0:
-                        logging.error(f"No triggers found for event task {event_task.id} in event {submission.event_id}.")
+                        logging.error(f"No triggers found for event task {event_task.id}.")
                         continue
 
                     for event_trigger in event_triggers:
@@ -81,11 +81,11 @@ def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress,
     return new_tile_progress
 
 # Process a submission for a team. Returns a list of completed tile indices
-def progress_team(submission: EventSubmission, team_data: BingoTeam) -> list[int]:
+def progress_team(event: Events, submission: EventSubmission, team_data: BingoTeam) -> list[int]:
     # Grab all of the bingo tiles
-    tiles: list[BingoTiles] = BingoTiles.query.filter_by(event_id=submission.event_id).all()
+    tiles: list[BingoTiles] = BingoTiles.query.filter_by(event_id=event.id).all()
     if not tiles or len(tiles) == 0:
-        logging.error(f"No bingo tiles found for event {submission.event_id}.")
+        logging.error(f"No bingo tiles found for event {event.id}.")
         return []
 
     completed_task_tile_indices: set[int] = set()
@@ -206,7 +206,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         team_data.team_id = str(team.id)
 
     # Progress the team based on the submission
-    completed_task_tile_indices = progress_team(submission, team_data)
+    completed_task_tile_indices = progress_team(event, submission, team_data)
     
     # If no tasks were completed, return early
     if not completed_task_tile_indices or len(completed_task_tile_indices) == 0:
@@ -236,7 +236,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
             logging.error(f"Tile with index {first_completed_tile} not found for Bingo event {event.id}.")
             return []
         response: NotificationResponse = NotificationResponse(
-            threadId=event.webhook_thread_id,
+            threadId=event.thread_id,
             title=f"{tile.name} Task Completed!",
             color=0xFFD700,  # Gold color
             description=f"The **{team_data.name}** have completed a task!",
@@ -255,7 +255,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         return [response]
     elif bingo_count == 1:
         response: NotificationResponse = NotificationResponse(
-            threadId=event.webhook_thread_id,
+            threadId=event.thread_id,
             title="Bingo!",
             color=0x00FF00,  # Green color
             description=f"The **{team_data.name}** have completed a row or column and scored a Bingo!",
@@ -274,7 +274,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         return [response]
     elif bingo_count == 2:
         response: NotificationResponse = NotificationResponse(
-            threadId=event.webhook_thread_id,
+            threadId=event.thread_id,
             title="Multiple Bingos!",
             color=0xFF4500,  # OrangeRed color
             description=f"The **{team_data.name}** have completed a double bingo!",
@@ -293,13 +293,13 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         return [response]
     else: # This should technically not be possible and we'll have a funny message for it
         response: NotificationResponse = NotificationResponse(
-            threadId=event.webhook_thread_id,
+            threadId=event.thread_id,
             title="Bingo Anomaly Detected!",
             color=0xFF0000,  # Red color
-            description=f"Team **{team_data.name}** has triggered an unexpected bingo count of {bingo_count}. Please contact an admin.",
+            description=f"The **{team.name}** have triggered an unexpected bingo count of {bingo_count}. Please contact an admin.",
             author=NotificationAuthor(
-                name="Bingo Event",
-                icon_url="https://i.imgur.com/3ZQ3Z3Q.png"
+                name=team.name,
+                icon_url=team.image
             ),
             fields=[
                 NotificationField(
@@ -311,6 +311,11 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         )
 
     return [NotificationResponse(
-        author="stability itself",
+        threadId=event.thread_id,
+        description="An unexpected error occurred while processing the bingo. Please contact an admin.",
+        author=NotificationAuthor(
+            name="Bingo Event",
+            icon_url="https://i.imgur.com/3ZQ3Z3Q.png"
+        ),
         title="This message should never be seen. @funzip"
     )]

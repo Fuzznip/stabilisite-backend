@@ -54,7 +54,9 @@ class BingoTileProgress:
                     count += 1
         return count
 
-    def add_task_progress(self, task_id: str, trigger: str, quantity: int) -> bool:
+    def add_task_progress(self, task_id: str, trigger: str, quantity: int | None) -> bool:
+        if quantity is None:
+            quantity = 1
         for task_list in self.progress:
             for task in task_list:
                 # Find the task by ID
