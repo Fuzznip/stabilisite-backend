@@ -31,20 +31,12 @@ def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress,
 
             # Check if the submission's trigger matches any of the event challenge's triggers
             # Loop through the tasks in the event challenge
-            event_tasks: list[EventTasks] = EventTasks.query.filter_by(challenge_id=event_challenge.id).all()
-            if not event_tasks or len(event_tasks) == 0:
-                logging.error(f"No tasks found for event challenge {event_challenge.id}.")
-                continue
+            for task_id in event_challenge.tasks:
+                event_task: EventTasks = EventTasks.query.filter_by(id=task_id).first()
 
-            for event_task in event_tasks:
-                # Get the triggers for the event task
-                event_triggers: list[EventTriggers] = EventTriggers.query.filter_by(task_id=event_task.id).all()
-                if not event_triggers or len(event_triggers) == 0:
-                    logging.error(f"No triggers found for event task {event_task.id}.")
-                    continue
-
-                for event_trigger in event_triggers:
+                for event_trigger_id in event_task.triggers:
                     # Check if the submission's trigger matches the event trigger
+                    event_trigger: EventTriggers = EventTriggers.query.filter_by(id=event_trigger_id).first()
 
                     # Normalize source for comparison
                     trigger_source_norm = event_trigger.source.lower() if event_trigger.source else ""
