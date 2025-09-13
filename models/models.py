@@ -374,3 +374,14 @@ class EventLog(db.Model, Serializer):
 
     def serialize(self):
         return Serializer.serialize(self)
+    
+    def __init__(self, event_id, rsn, discord_id, trigger, source, quantity, type, value):
+        self.event_id = event_id
+        self.rsn = rsn
+        self.discord_id = discord_id
+        self.trigger = trigger
+        self.source = source
+        self.quantity = quantity
+        self.type = type
+        self.value = value
+        self.timestamp = datetime.datetime.now(datetime.timezone.utc)
