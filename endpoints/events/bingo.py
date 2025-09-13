@@ -6,7 +6,7 @@ from helper.helpers import ModelEncoder
 import json
 import logging
 
-@app.route("/teams", methods=['GET'])
+@app.route("/events/teams", methods=['GET'])
 def get_teams():
     # Find the latest bingo event
     event = Events.query.filter(
@@ -25,7 +25,7 @@ def get_teams():
     data = [team.data for team in teams]
     return jsonify(data), 200
 
-@app.route("/board", methods=['GET'])
+@app.route("/events/board", methods=['GET'])
 def get_events():
     # Find the latest bingo event
     event = Events.query.filter(
