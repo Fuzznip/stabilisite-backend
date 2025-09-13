@@ -7,7 +7,7 @@ import json
 import logging
 
 @app.route("/teams", methods=['GET'])
-def get_teams():
+def get_bingo_teams():
     # Find the latest bingo event
     event = Events.query.filter(
         Events.type == "BINGO"
@@ -26,7 +26,7 @@ def get_teams():
     return jsonify(data), 200
 
 @app.route("/board", methods=['GET'])
-def get_events():
+def get_bingo_board():
     # Find the latest bingo event
     event = Events.query.filter(
         Events.type == "BINGO"
