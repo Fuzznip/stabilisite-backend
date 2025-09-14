@@ -52,7 +52,6 @@ def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress,
                     source_matches = (not trigger_source_norm) or (trigger_source_norm == submission_source_norm)
 
                     if event_trigger.trigger.lower() == submission.trigger.lower() and source_matches:
-                        print(f"{event_trigger.trigger.lower()} == {submission.trigger.lower()} and {source_matches} -> {event_trigger.trigger.lower() == submission.trigger.lower() and source_matches} ")
                         # Progress the task
                         # Find the corresponding task progress in the tile progress
                         bingo_progress.progressed_task_id = bingo_task_id
@@ -60,7 +59,6 @@ def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress,
                         
                         task_completed = bingo_progress.new_progress.add_task_progress(bingo_task_id, task.task_index, event_challenge, event_task, submission.trigger, submission.quantity, event_challenge.type)
                         if task_completed:
-                            logging.error(f"Task in tile {tile.name} completed by submission {submission}.")
                             # Award points for completing the task
                             
                             team_data.points += 3
@@ -73,10 +71,6 @@ def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress,
 
 # Process a submission for a team. Returns a list of completed tile indices
 def progress_team(event: Events, submission: EventSubmission, team_data: BingoTeam) -> list[int]:
-    print(submission)
-    for key, value in team_data.to_dict().items():
-        print(f"{key}: {value}")
-
     # Grab all of the bingo tiles
     tiles: list[BingoTiles] = BingoTiles.query.filter_by(event_id=event.id).all()
     if not tiles or len(tiles) == 0:
@@ -111,31 +105,25 @@ def progress_team(event: Events, submission: EventSubmission, team_data: BingoTe
     return list(completed_task_tile_indices)
 
 def check_row_for_bingo(tile_index: int, team_data: BingoTeam) -> bool:
-    print("rows")
     # Count the number of completed tasks in the tile index
     tile_progress = team_data.get_tile_progress(str(tile_index))
     completed_tasks = tile_progress.get_completed_task_count() if tile_progress else 0
-    print(f"Completed tasks in tile {tile_index}: {completed_tasks}")
     # Find the minimum number of completed tasks in the row
     row = tile_index // 5
     min_completed = 3  # Start with max possible (3 tasks per tile)
     for i in range(5):
-        print(f"Checking tile at index {i * 5 + row}. Minimum so far: {min_completed}")
         tile_progress = team_data.get_tile_progress(str(row * 5 + i))
         min_completed = min(min_completed, tile_progress.get_completed_task_count() if tile_progress else 0)
     return min_completed == completed_tasks
 
 def check_column_for_bingo(tile_index: int, team_data: BingoTeam) -> bool:
-    print("columns")
     # Count the number of completed tasks in the tile index
     tile_progress = team_data.get_tile_progress(str(tile_index))
     completed_tasks = tile_progress.get_completed_task_count() if tile_progress else 0
-    print(f"Completed tasks in tile {tile_index}: {completed_tasks}")
     # Find the minimum number of completed tasks in the column
     col = tile_index % 5
     min_completed = 3  # Start with max possible (3 tasks per tile)
     for i in range(5):
-        print(f"Checking tile at index {i * 5 + col}. Minimum so far: {min_completed}")
         tile_progress = team_data.get_tile_progress(str(i * 5 + col))
         min_completed = min(min_completed, tile_progress.get_completed_task_count() if tile_progress else 0)
     return min_completed == completed_tasks
@@ -191,7 +179,6 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
 
     # Progress the team based on the submission
     completed_task_tile_indices = progress_team(event, submission, team_data)
-    print(completed_task_tile_indices)
     
     # If no tasks were completed, return early
     if not completed_task_tile_indices or len(completed_task_tile_indices) == 0:
@@ -204,14 +191,11 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     # If tasks were completed, check for bonus points for completing rows/columns
     for index in completed_task_tile_indices:
         if check_row_for_bingo(index, team_data):
-            logging.error("Bingo achieved in row!")
             bingo_count += 1
         if check_column_for_bingo(index, team_data):
-            logging.error("Bingo achieved in column!")
             bingo_count += 1
 
     # Award points for bingos
-    logging.error(f"{bingo_count}")
     team_data.points += bingo_count * 15
 
     # save the team data back to the database
