@@ -385,3 +385,17 @@ class EventLog(db.Model, Serializer):
         self.type = type
         self.value = value
         self.timestamp = datetime.datetime.now(datetime.timezone.utc)
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "event_id": str(self.event_id),
+            "rsn": self.rsn,
+            "discord_id": self.discord_id,
+            "trigger": self.trigger,
+            "source": self.source,
+            "quantity": self.quantity,
+            "type": self.type,
+            "value": self.value,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None
+        }

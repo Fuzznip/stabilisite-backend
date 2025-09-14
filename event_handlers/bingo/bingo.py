@@ -107,7 +107,7 @@ def progress_team(event: Events, submission: EventSubmission, team_data: BingoTe
 
 def write_to_firestore(event_log: EventLog):
     try:
-        firestore_db.collection("drops").add(event_log)
+        firestore_db.collection("drops").add(event_log.to_dict())
         logging.info(f"Wrote drop to Firestore for event: ${event_log.id}")
     except Exception as e:
         logging.exception(f"Failed to write drop to Firestore for event: ${event_log.id} : {e}")
