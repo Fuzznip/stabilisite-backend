@@ -1,6 +1,7 @@
 import os
 
 import logging
+import json
 from logging.config import dictConfig
 
 from flask_sqlalchemy import SQLAlchemy
@@ -8,6 +9,9 @@ from flask_migrate import Migrate
 from flask import Flask, render_template
 from dotenv import load_dotenv
 from flask_swagger_ui import get_swaggerui_blueprint
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import firestore
 from scripts.combine_swagger import combine_swagger_files
 
 load_dotenv()
@@ -75,11 +79,17 @@ dictConfig({
 DATABASE_USERNAME = os.getenv("DATABASE_USERNAME")
 DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
 DATABASE_URL = os.getenv("DATABASE_URL")
+FIREBASE_CREDENTIALS = os.getenv("FIREBASE_CREDENTIALS")
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI']=f"postgresql://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_URL}"
 app_context = app.app_context()
 db = SQLAlchemy(app)
+
+cred = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
+firebase_admin.initialize_app(FIREBASE_CREDENTIALS)
+firestore_db = firestore.client()
+
 migrate = Migrate(app, db)
 
 # Ensure swagger.json is generated at app startup
