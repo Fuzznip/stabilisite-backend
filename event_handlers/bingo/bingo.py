@@ -92,16 +92,12 @@ def progress_team(event: Events, submission: EventSubmission, team_data: BingoTe
 
     return list(completed_task_tile_indices)
 
-def write_to_firestore(team_data: BingoTeam, tile_index: int):
+def write_to_firestore(event_log: EventLog):
     try:
-        firestore_db.collection("drops").add({
-        "timestamp": datetime.now(timezone.utc),
-        "team_name": team_data.team_id,
-        "tile_index": tile_index,
-        })
-        logging.info(f"Wrote drop to Firestore for '{team_data.name}'s' completion at tile {tile_index}.")
+        firestore_db.collection("drops").add(event_log)
+        logging.info(f"Wrote drop to Firestore for event: ${event_log.id}")
     except Exception as e:
-        logging.exception(f"Failed to write drop to Firestore for team '{team_data.name}' at tile {tile_index}: {e}")
+        logging.exception(f"Failed to write drop to Firestore for event: ${event_log.id} : {e}")
 
 def check_row_for_bingo(tile_index: int, team_data: BingoTeam) -> bool:
     # Count the number of completed tasks in the tile index
@@ -150,8 +146,11 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         type=submission.type,
         value=submission.totalValue
     )
+    
     db.session.add(event_log_entry)
     db.session.commit()
+    
+    write_to_firestore(event_log_entry)
 
     # Query the database to see if the user is in the event
     username = submission.rsn
@@ -202,9 +201,6 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     # If no tasks were completed, return early
     if not completed_task_tile_indices or len(completed_task_tile_indices) == 0:
         return []
-    
-    # for tile_index in completed_task_tile_indices:
-    #     write_to_firestore(team_data, tile_index)
 
     bingo_count = 0
     # If tasks were completed, check for bonus points for completing rows/columns
