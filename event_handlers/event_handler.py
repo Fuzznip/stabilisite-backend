@@ -108,10 +108,13 @@ class EventHandler:
     def handle_event(cls, data: EventSubmission):
         notifications: list[NotificationResponse] = []
         for handler in cls.handlers:
-            responses: list[NotificationResponse] = handler(data)
-            if not responses:
-                continue
-            
-            for notif in responses:
-                notifications.append(notif.to_dict())
+            try:
+                responses: list[NotificationResponse] = handler(data)
+                if not responses:
+                    continue
+                
+                for notif in responses:
+                    notifications.append(notif.to_dict())
+            except Exception as e:
+                logging.error(f"Error in handler {handler.__name__}: {e}", exc_info=True)
         return {"notifications": notifications}
