@@ -146,7 +146,6 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         type=submission.type,
         value=submission.totalValue
     )
-    
     db.session.add(event_log_entry)
     db.session.commit()
     
