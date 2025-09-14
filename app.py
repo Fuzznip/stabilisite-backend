@@ -87,7 +87,7 @@ app_context = app.app_context()
 db = SQLAlchemy(app)
 
 cred = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
-firebase_admin.initialize_app(FIREBASE_CREDENTIALS)
+firebase_admin.initialize_app(cred)
 firestore_db = firestore.client()
 
 migrate = Migrate(app, db)
