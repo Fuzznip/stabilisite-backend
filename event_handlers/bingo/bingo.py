@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from app import db
+from app import firestore_db
 from event_handlers.event_handler import EventSubmission, NotificationField, NotificationResponse, NotificationAuthor
 from event_handlers.event_handler import EventSubmission, NotificationField, NotificationResponse, NotificationAuthor
 from models.models import Events, EventTeams, EventTeamMemberMappings, EventChallenges, EventTasks, EventTriggers, EventTriggerMappings, EventLog
@@ -91,6 +92,13 @@ def progress_team(event: Events, submission: EventSubmission, team_data: BingoTe
 
     return list(completed_task_tile_indices)
 
+def write_to_firestore(event_log: EventLog):
+    try:
+        firestore_db.collection("drops").add(event_log)
+        logging.info(f"Wrote drop to Firestore for event: ${event_log.id}")
+    except Exception as e:
+        logging.exception(f"Failed to write drop to Firestore for event: ${event_log.id} : {e}")
+
 def check_row_for_bingo(tile_index: int, team_data: BingoTeam) -> bool:
     # Count the number of completed tasks in the tile index
     tile_progress = team_data.get_tile_progress(tile_index)
@@ -140,6 +148,8 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     )
     db.session.add(event_log_entry)
     db.session.commit()
+    
+    write_to_firestore(event_log_entry)
 
     # Query the database to see if the user is in the event
     username = submission.rsn
