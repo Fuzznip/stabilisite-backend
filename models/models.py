@@ -335,6 +335,7 @@ class EventChallenges(db.Model, Serializer):
     type = db.Column(db.String, nullable=False, default="OR") # enum: "OR", "AND", "CUMULATIVE"
     tasks = db.Column(ARRAY(db.String))
     value = db.Column(db.Integer, nullable=False, default=1)
+    name = db.Column(db.String, nullable=False, default="")
     
     def serialize(self):
         return Serializer.serialize(self)
