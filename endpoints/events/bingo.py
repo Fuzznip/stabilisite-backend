@@ -48,7 +48,8 @@ def get_bingo_board():
             "id": str(tile.id),
             "name": tile.name, 
             "index": tile.index,
-            "tasks": []}
+            "tasks": []
+        }
         tile_tasks: list[BingoChallenges] = BingoChallenges.query.filter_by(tile_id=tile.id).all()
         for i, task in enumerate(tile_tasks):
             challenges_list: list[list[str]] = []
@@ -58,7 +59,7 @@ def get_bingo_board():
                     logging.error(f"Challenge {challenge_id} not found for bingo task {task.id}.")
                     continue
 
-                triggers = []
+                triggers: list[str] = []
                 for task_id in challenge.tasks:
                     event_task: EventTasks = EventTasks.query.filter_by(id=task_id).first()
                     if event_task is None:
@@ -72,7 +73,7 @@ def get_bingo_board():
                         
                         triggers.append(event_trigger.trigger)
                 
-                challenges_list.append(triggers.join(f" {challenge.type} "))
+                challenges_list.append(triggers)
 
             task = {
                 "id": str(task.id),
