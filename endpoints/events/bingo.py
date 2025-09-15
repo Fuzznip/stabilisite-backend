@@ -72,14 +72,13 @@ def get_bingo_board():
                         
                         triggers.append(event_trigger.trigger)
                 
-                challenges_list.append(triggers)
+                challenges_list.append(triggers.join(f" {challenge.type} "))
 
             task = {
                 "id": str(task.id),
                 "index": i,             
-                "name": challenges_list.join(f" {challenge.type} "),
-                "required": challenge_id,
-                "triggers": challenges_list,
+                "name": challenges_list,
+                "required": event_task.quantity,
             }
             tile_data["tasks"].append(task)
         response.append(tile_data)
