@@ -23,6 +23,7 @@ class BingoChallenges(db.Model, Serializer):
     task_index = db.Column(db.Integer)  # Index of the task within the tile (0-2 for a tile with 3 tasks)
     tile_id = db.Column(UUID(as_uuid=True), db.ForeignKey('bingo_tiles.id', ondelete="CASCADE"))  # Cascade delete
     challenges = db.Column(ARRAY(UUID(as_uuid=True)), nullable=False)  # List of challenges for the bingo task
+    name = db.Column(db.String, default="")
 
     def serialize(self):
         return Serializer.serialize(self)
