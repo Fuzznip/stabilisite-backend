@@ -54,7 +54,7 @@ def get_bingo_board():
         for i, task in enumerate(tile_tasks):
             challenges_list: list[list[str]] = []
             for challenge_id in task.challenges:
-                challenge = EventChallenges.query.filter_by(id=challenge_id).first()
+                challenge: EventChallenges = EventChallenges.query.filter_by(id=challenge_id).first()
                 if challenge is None:
                     logging.error(f"Challenge {challenge_id} not found for bingo task {task.id}.")
                     continue
@@ -74,9 +74,12 @@ def get_bingo_board():
                         triggers.append(event_trigger.trigger)
                 
                 if triggers:
-                    joined_triggers = f" {event_trigger.type} ".join(triggers)
+                    joined_triggers = f" {challenge.type} ".join(triggers)
+                amount: str
+                if event_trigger.type == 'KC':
+                    challenges_list.append(f"{event_task.quantity} {joined_triggers}")
+                else:
                     challenges_list.append(joined_triggers)
-
             # Join all challenge trigger groups with "OR"
             name = " OR ".join(challenges_list)
 
