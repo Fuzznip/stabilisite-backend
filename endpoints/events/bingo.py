@@ -70,24 +70,17 @@ def get_bingo_board():
                         if event_trigger is None:
                             logging.error(f"Event trigger {trigger_id} not found for task {task_id}.")
                             continue
-                        
+
                         triggers.append(event_trigger.trigger)
-                
-                if triggers:
-                    joined_triggers = f" {challenge.type} ".join(triggers)
-                amount: str
-                if event_trigger.type == 'KC':
-                    challenges_list.append(f"{event_task.quantity} {joined_triggers}")
-                else:
-                    challenges_list.append(joined_triggers)
-            # Join all challenge trigger groups with "OR"
-            name = " OR ".join(challenges_list)
+
+                challenges_list.append(triggers)
 
             task = {
                 "id": str(task.id),
                 "index": i,             
-                "name": name,
+                "triggers": challenges_list,
                 "required": event_task.quantity,
+                "name": challenge.name
             }
             tile_data["tasks"].append(task)
         response.append(tile_data)
