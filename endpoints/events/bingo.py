@@ -80,7 +80,7 @@ def get_bingo_board():
                 "index": i,             
                 "triggers": challenges_list,
                 "required": event_task.quantity,
-                "name": challenge.name
+                "name": task.name
             }
             tile_data["tasks"].append(task)
         response.append(tile_data)
