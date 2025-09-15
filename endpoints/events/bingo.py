@@ -82,7 +82,6 @@ def get_bingo_board():
                 "triggers": challenges_list,
             }
             tile_data["tasks"].append(task)
+        response.append(tile_data)
 
-    return jsonify(response), 200   
-    # Return the event data field
-    return jsonify(event.data), 200
+    return jsonify(response), 200
