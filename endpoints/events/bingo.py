@@ -73,12 +73,17 @@ def get_bingo_board():
                         
                         triggers.append(event_trigger.trigger)
                 
-                challenges_list.append(triggers)
+                if triggers:
+                    joined_triggers = f" {event_trigger.type} ".join(triggers)
+                    challenges_list.append(joined_triggers)
+
+            # Join all challenge trigger groups with "OR"
+            name = " OR ".join(challenges_list)
 
             task = {
                 "id": str(task.id),
                 "index": i,             
-                "name": challenges_list,
+                "name": name,
                 "required": event_task.quantity,
             }
             tile_data["tasks"].append(task)
