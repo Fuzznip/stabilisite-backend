@@ -77,7 +77,7 @@ def get_bingo_board():
 
             task = {
                 "id": str(task.id),
-                "index": i,             
+                "index": task.task_index,             
                 "triggers": challenges_list,
                 "required": event_task.quantity,
                 "name": task.name
