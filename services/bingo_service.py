@@ -32,7 +32,11 @@ class BingoService:
             return 0
 
         # Get all tile statuses for this team in this event
-        tile_statuses = TileStatus.query.join(Tile).filter(
+        # Use eager loading to avoid N+1 queries
+        from sqlalchemy.orm import joinedload
+        tile_statuses = TileStatus.query.join(Tile).options(
+            joinedload(TileStatus.tile)
+        ).filter(
             Tile.event_id == event_id,
             TileStatus.team_id == team_id
         ).all()
@@ -43,9 +47,9 @@ class BingoService:
         # Build 5x5 grid of medal levels
         grid = [[0]*5 for _ in range(5)]
         for ts in tile_statuses:
-            tile = Tile.query.filter_by(id=ts.tile_id).first()
-            if tile:
-                row, col = tile.index // 5, tile.index % 5
+            # Access the eagerly loaded tile relationship (no additional query)
+            if ts.tile:
+                row, col = ts.tile.index // 5, ts.tile.index % 5
                 grid[row][col] = ts.tasks_completed
 
         # Count bingos at the medal level

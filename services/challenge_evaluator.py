@@ -178,8 +178,23 @@ class ChallengeEvaluator:
                 completed=False
             )
             db.session.add(status)
+            db.session.flush()  # Get the ID without committing
         else:
-            status.quantity += quantity_to_add
+            # Use atomic SQL UPDATE to prevent race conditions
+            # This ensures quantity increment happens at the database level
+            from sqlalchemy import text
+            db.session.execute(
+                text("""
+                    UPDATE new_stability.challenge_statuses
+                    SET quantity = quantity + :qty,
+                        updated_at = NOW()
+                    WHERE id = :status_id
+                """),
+                {"qty": quantity_to_add, "status_id": str(status.id)}
+            )
+            db.session.flush()
+            # Refresh to get updated quantity
+            db.session.refresh(status)
 
         # Check if newly completed
         was_completed = status.completed

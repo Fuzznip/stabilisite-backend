@@ -346,8 +346,8 @@ class ActionProcessor:
 
         db.session.commit()
 
-        # Get event_id for bingo detection
-        event = Event.query.join(Tile).filter(Tile.id == tile.id).first()
+        # Get event_id for bingo detection (use tile.event_id directly)
+        event = Event.query.filter_by(id=tile.event_id).first()
         if not event:
             logging.error(f"Event not found for tile {tile.id}")
             return None
@@ -378,8 +378,17 @@ class ActionProcessor:
         else:
             tile_status.tasks_completed = new_medal_level
 
-        # Award 3 points for task completion
-        team.points += 3
+        # Award 3 points for task completion using atomic SQL UPDATE
+        from sqlalchemy import text
+        db.session.execute(
+            text("""
+                UPDATE new_stability.teams
+                SET points = points + 3,
+                    updated_at = NOW()
+                WHERE id = :team_id
+            """),
+            {"team_id": str(team.id)}
+        )
         db.session.commit()
 
         # Count bingos AFTER updating tile status
@@ -388,9 +397,19 @@ class ActionProcessor:
         # Calculate and award bingo delta
         new_bingos = bingos_after - bingos_before
         if new_bingos > 0:
-            team.points += new_bingos * 15
+            # Award bingo points using atomic SQL UPDATE
+            bingo_points = new_bingos * 15
+            db.session.execute(
+                text("""
+                    UPDATE new_stability.teams
+                    SET points = points + :bingo_points,
+                        updated_at = NOW()
+                    WHERE id = :team_id
+                """),
+                {"bingo_points": bingo_points, "team_id": str(team.id)}
+            )
             db.session.commit()
-            logging.info(f"Team {team.id} awarded {new_bingos * 15} points for {new_bingos} new bingo(s) at medal level {new_medal_level}")
+            logging.info(f"Team {team.id} awarded {bingo_points} points for {new_bingos} new bingo(s) at medal level {new_medal_level}")
 
         logging.info(f"Task {task.id} completed for team {team.id} on tile {tile.id}. Medal level: {new_medal_level}")
 
