@@ -6,18 +6,23 @@ from helper.jsonb import update_jsonb_field
 import random
 
 kc_point_dict = {
-    "corrupted hunllef": 2,
-    "crystalline hunllef": 1,
-    "the gauntlet": 0,
+    "phosani's nightmare": 2,
+    "the nightmare": 1,
+    "nightmare of ashihama": 1,
     "corrupted gauntlet": 0,
     "gauntlet": 0,
 }
 
 item_point_dict = {
-    "crystal weapon seed": 20,
-    "crystal armour seed": 25,
-    "enhanced crystal weapon seed": 60,
-    "youngllef": 80,
+    "inquisitor's mace": 30,
+    "nightmare staff": 30,
+    "inquisitor's great helm": 50,
+    "inquisitor's hauberk": 50,
+    "inquisitor's plateskirt": 50,
+    "eldritch orb": 100,
+    "harmonised orb": 100,
+    "volatile orb": 100,
+    "little nightmare": 200
 }
 
 def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
@@ -65,7 +70,7 @@ def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
                 threadId=event.thread_id,
                 title=f"{submission.rsn} has received a {submission.trigger} for {item_point_dict[submission.trigger.lower()]} points!",
                 color=0xFF0055,
-                thumbnailImage="https://i.imgur.com/55RLPmc.png",
+                thumbnailImage="https://i.imgur.com/bCF3Rlz.png",
                 author=NotificationAuthor(name=f"{submission.rsn}"),
                 description=f"Their current point total is now {new_points} points."
             )]
