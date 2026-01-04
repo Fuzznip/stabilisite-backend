@@ -406,7 +406,7 @@ def setup_full_board(event, triggers):
 
     return tiles
 
-def test_or_logic(team, user):
+def run_or_logic_test(team, user):
     """Test OR challenge completion"""
     print("\n" + "="*60)
     print("TEST 1: OR Logic (Get ANY Barrows piece)")
@@ -452,7 +452,7 @@ def test_or_logic(team, user):
 
         return result
 
-def test_and_logic(team, user):
+def run_and_logic_test(team, user):
     """Test AND challenge completion"""
     print("\n" + "="*60)
     print("TEST 2: AND Logic (Get ALL Zulrah uniques)")
@@ -502,7 +502,7 @@ def test_and_logic(team, user):
 
         return result
 
-def test_parent_child_logic(team, user):
+def run_parent_child_logic_test(team, user):
     """Test parent-child challenge structure"""
     print("\n" + "="*60)
     print("TEST 3: Parent-Child Logic (Quest OR Diary) AND (Boss kills)")
@@ -566,7 +566,7 @@ def test_parent_child_logic(team, user):
 
         return result
 
-def test_multi_team_bingo(team_a, team_b, users):
+def run_multi_team_bingo_test(team_a, team_b, users):
     """Test bingo detection with multiple teams"""
     print("\n" + "="*60)
     print("TEST 4: Multi-Team Bingo Detection")
@@ -681,7 +681,7 @@ def test_multi_team_bingo(team_a, team_b, users):
         print("\n✅ Multi-team bingo test completed")
         print(f"   Check bingo notifications for both teams")
 
-def test_proof_optimization():
+def run_proof_optimization_test():
     """Test that proof optimization is working across all challenge types"""
     print("\n" + "="*60)
     print("TEST 5: Proof Creation Optimization")
@@ -721,15 +721,15 @@ def main():
     tiles = setup_full_board(event, triggers)
 
     # Run tests with Team A, Player 1
-    test_or_logic(team_a, users[0])
-    test_and_logic(team_a, users[1])
-    test_parent_child_logic(team_a, users[2])
+    run_or_logic_test(team_a, users[0])
+    run_and_logic_test(team_a, users[1])
+    run_parent_child_logic_test(team_a, users[2])
 
     # Multi-team test
-    test_multi_team_bingo(team_a, team_b, users)
+    run_multi_team_bingo_test(team_a, team_b, users)
 
     # Proof optimization check
-    test_proof_optimization()
+    run_proof_optimization_test()
 
     print("\n" + "="*60)
     print("🎉 ALL TESTS COMPLETE!")

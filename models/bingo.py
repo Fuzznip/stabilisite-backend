@@ -1,10 +1,9 @@
+from __future__ import annotations
 from app import db
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from helper.helpers import Serializer
 import uuid
 import logging
-
-from models.models import EventChallenges, EventTasks
 
 class BingoTiles(db.Model, Serializer):
     __tablename__ = 'bingo_tiles'
@@ -117,7 +116,7 @@ class BingoTileProgress:
                 count += 1
         return count
 
-    def add_task_progress_or(self, task_id: str, task_index: str, event_challenge: EventChallenges, event_task: EventTasks, trigger: str, quantity: int | None) -> bool:
+    def add_task_progress_or(self, task_id: str, task_index: str, event_challenge: "EventChallenges", event_task: "EventTasks", trigger: str, quantity: int | None) -> bool:
         if quantity is None or quantity <= 0:
             quantity = 1  # Default to incrementing by 1 if no quantity is provided
         
@@ -164,12 +163,12 @@ class BingoTileProgress:
         challenge_progress.triggers.append(BingoTriggerProgress(name=trigger, value=quantity if quantity else 1))
         return task_progress.completed and not old_completed_status  # Return True if task was completed now
 
-    def add_task_progress_and(self, task_id: str, task_index: str, event_challenge: EventChallenges, event_task: EventTasks, trigger: str, quantity: int | None) -> bool:
+    def add_task_progress_and(self, task_id: str, task_index: str, event_challenge: "EventChallenges", event_task: "EventTasks", trigger: str, quantity: int | None) -> bool:
         return False
 
     # Add or update progress for a specific task and challenge
     # Returns True if task was completed as a result of this progress addition, False otherwise
-    def add_task_progress(self, task_id: str, task_index: str, event_challenge: EventChallenges, event_task: EventTasks, trigger: str, quantity: int | None, challenge_type: str) -> bool:
+    def add_task_progress(self, task_id: str, task_index: str, event_challenge: "EventChallenges", event_task: "EventTasks", trigger: str, quantity: int | None, challenge_type: str) -> bool:
         if challenge_type in ["OR"]:
             return self.add_task_progress_or(task_id, task_index, event_challenge, event_task, trigger, quantity)
         elif challenge_type in ["AND"]:

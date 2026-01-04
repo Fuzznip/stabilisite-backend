@@ -133,7 +133,7 @@ def generate_shop_inventory(event_id: str, shop_tier: int = 1, item_count: int =
         
         # Count attempt to avoid infinite loops if there aren't enough unique items
         attempt_count = 0
-        max_attempts = item_count * 3
+        max_attempts = item_count * 10  # Increased to ensure we can find items even with bad RNG
         
         # Select random items based on rarity weights
         while len(shop_items) < item_count and attempt_count < max_attempts:

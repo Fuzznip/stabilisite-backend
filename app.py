@@ -87,7 +87,11 @@ app_context = app.app_context()
 db = SQLAlchemy(app)
 
 cred = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
-firebase_admin.initialize_app(cred)
+# Initialize Firebase only if not already initialized (important for pytest)
+try:
+    firebase_admin.get_app()
+except ValueError:
+    firebase_admin.initialize_app(cred)
 firestore_db = firestore.client()
 
 migrate = Migrate(app, db)

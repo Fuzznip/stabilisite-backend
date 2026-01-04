@@ -46,7 +46,7 @@ def test_create_raid_tier_application(client, setup_raid_tiers):
     assert response.status_code == 201
     response_data = json.loads(response.data)
     assert response_data["user_id"] == "12345"
-    assert response_data["target_raid_tier_id"] == "bd9dbfe0499c4adb9f01d6ee1caf6187"
+    assert response_data["target_raid_tier_id"] == "bd9dbfe0-499c-4adb-9f01-d6ee1caf6187"
     assert response_data["runescape_name"] == "TestUser"
     assert response_data["status"] == "Pending"
 
