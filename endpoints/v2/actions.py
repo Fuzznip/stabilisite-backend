@@ -49,6 +49,7 @@ def create_action():
     {
         "player_id": "uuid",
         "name": "string",
+        "type": "string" (optional, default 'DROP' - values: KC, DROP, QUEST, ACHIEVEMENT, DIARY, SKILL),
         "source": "string" (optional),
         "quantity": int (optional, default 1),
         "date": "ISO datetime" (optional, defaults to now)
@@ -67,6 +68,13 @@ def create_action():
     # Set defaults
     if 'quantity' not in data:
         data['quantity'] = 1
+    if 'type' not in data:
+        data['type'] = 'DROP'
+
+    # Validate action type
+    valid_types = ['KC', 'DROP', 'QUEST', 'ACHIEVEMENT', 'DIARY', 'SKILL']
+    if data['type'] not in valid_types:
+        return jsonify({'error': f'Invalid type. Must be one of: {", ".join(valid_types)}'}), 400
 
     # Parse date if provided
     date = None
@@ -81,6 +89,7 @@ def create_action():
     result = ActionProcessor.process_action(
         player_id=data['player_id'],
         action_name=data['name'],
+        action_type=data['type'],
         source=data.get('source'),
         quantity=data['quantity'],
         date=date

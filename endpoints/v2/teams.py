@@ -38,7 +38,7 @@ def get_team(id):
     return json.dumps(team.serialize(), cls=ModelEncoder), 200
 
 @app.route("/api/v2/teams", methods=['POST'])
-def create_team():
+def create_team_v2():
     """Create a new team"""
     data = request.get_json()
     if not data:
@@ -83,7 +83,7 @@ def delete_team(id):
 # =========================================
 
 @app.route("/api/v2/teams/<team_id>/members", methods=['GET'])
-def get_team_members(team_id):
+def get_team_members_v2(team_id):
     """Get all members of a team"""
     team = CRUDService.get_by_id(Team, team_id)
     if not team:

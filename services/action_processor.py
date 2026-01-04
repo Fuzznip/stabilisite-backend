@@ -22,6 +22,7 @@ class ActionProcessor:
     def process_action(
         player_id: str,
         action_name: str,
+        action_type: str = 'DROP',
         source: Optional[str] = None,
         quantity: int = 1,
         date: Optional[datetime] = None
@@ -32,6 +33,7 @@ class ActionProcessor:
         Args:
             player_id: User UUID (from existing Users table)
             action_name: Name of the action/drop/kill
+            action_type: Type of action (KC, DROP, QUEST, ACHIEVEMENT, DIARY, SKILL)
             source: Where it came from (boss, location, etc.)
             quantity: How many
             date: When it happened (defaults to now)
@@ -45,6 +47,7 @@ class ActionProcessor:
         # 1. Create Action record
         action = Action(
             player_id=player_id,
+            type=action_type,
             name=action_name,
             source=source,
             quantity=quantity,
@@ -53,7 +56,7 @@ class ActionProcessor:
         db.session.add(action)
         db.session.commit()
 
-        logging.info(f"Action created: {action_name} x{quantity} from {source} by user {player_id}")
+        logging.info(f"Action created: {action_type} - {action_name} x{quantity} from {source} by user {player_id}")
 
         # 2. Find all active events
         now = datetime.now(timezone.utc)
@@ -238,6 +241,87 @@ class ActionProcessor:
         return matched_challenges
 
     @staticmethod
+    def _should_create_proof(
+        challenge: Challenge,
+        team: Team,
+        challenge_status: ChallengeStatus
+    ) -> bool:
+        """
+        Determine if we should create a proof for this challenge.
+
+        Optimization: Only create proofs for tasks that are:
+        1. Not yet completed (avoid redundant proofs for lower difficulty tasks)
+        2. Currently being worked on (the "active" task for the tile)
+
+        This prevents creating 3 proofs per action when a tile has bronze/silver/gold tasks
+        that all match the same trigger.
+
+        Args:
+            challenge: The challenge being processed
+            team: The team
+            challenge_status: The updated challenge status
+
+        Returns:
+            True if proof should be created, False to skip
+        """
+        if not challenge.task_id:
+            # No task associated, always create proof (for parent challenges)
+            return True
+
+        # Get the task
+        task = Task.query.filter_by(id=challenge.task_id).first()
+        if not task:
+            return False
+
+        # Check if task is already completed
+        task_status = TaskStatus.query.filter_by(
+            team_id=team.id,
+            task_id=task.id
+        ).first()
+
+        if task_status and task_status.completed:
+            # Task already completed before this action - skip proof
+            return False
+
+        # Check if this action just completed the challenge
+        if challenge_status.completed:
+            # Challenge just completed - definitely create proof
+            return True
+
+        # Challenge not complete yet - check if this is the "active" task for the tile
+        # (i.e., the lowest difficulty task that isn't completed yet)
+        tile = Tile.query.filter_by(id=task.tile_id).first()
+        if not tile:
+            return False
+
+        # Get tile status to see current progress level
+        tile_status = TileStatus.query.filter_by(
+            team_id=team.id,
+            tile_id=tile.id
+        ).first()
+
+        if not tile_status:
+            # No tile status yet - this is the first task, create proof
+            return True
+
+        # Get all tasks for this tile ordered by difficulty (we'll assume task order represents difficulty)
+        tile_tasks = Task.query.filter_by(tile_id=tile.id).order_by(Task.id).all()
+
+        # Find which task index we're at (based on tasks_completed)
+        # tasks_completed: 0=none, 1=bronze, 2=silver, 3=gold
+        current_task_index = tile_status.tasks_completed
+
+        if current_task_index >= len(tile_tasks):
+            # All tasks completed - shouldn't happen, but skip proof
+            return False
+
+        # Get the current active task
+        active_task = tile_tasks[current_task_index]
+
+        # Only create proof if this challenge belongs to the active task
+        return task.id == active_task.id
+
+    @staticmethod
     def _process_challenge_match(
         challenge: Challenge,
         team: Team,
@@ -259,13 +343,18 @@ class ActionProcessor:
         if not challenge_status:
             return []
 
-        # Create proof record
-        proof = ChallengeProof(
-            challenge_status_id=challenge_status.id,
-            action_id=action.id
-        )
-        db.session.add(proof)
-        db.session.commit()
+        # Only create proof if this task is relevant (not already completed)
+        should_create_proof = ActionProcessor._should_create_proof(challenge, team, challenge_status)
+
+        if should_create_proof:
+            proof = ChallengeProof(
+                challenge_status_id=challenge_status.id,
+                action_id=action.id
+            )
+            db.session.add(proof)
+            db.session.commit()
+        else:
+            logging.debug(f"Skipping proof creation for already-completed task (challenge {challenge.id})")
 
         # Propagate to parent challenges if any
         newly_completed_parents = ChallengeEvaluator.propagate_parent_completion(challenge, team.id)

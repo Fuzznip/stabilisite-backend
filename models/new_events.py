@@ -86,6 +86,7 @@ class Action(db.Model, Serializer):
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     player_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    type = db.Column(db.String(50), nullable=False, default='DROP')  # KC, DROP, QUEST, ACHIEVEMENT, DIARY, SKILL, etc.
     name = db.Column(db.String(255), nullable=False)
     source = db.Column(db.String(255))
     quantity = db.Column(db.Integer, nullable=False, default=1)

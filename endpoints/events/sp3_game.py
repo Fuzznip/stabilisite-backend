@@ -39,7 +39,7 @@ def get_challenge_progress_string(challenge_id, tile_progress):
             for trigger_id in triggers:
                 trigger = EventTriggers.query.filter_by(id=trigger_id).first()
                 if trigger.type == "DROP":
-                    trigger_list.append(f"{trigger.trigger}{" from " + trigger.source if trigger.source else ""}")
+                    trigger_list.append(f"{trigger.trigger}{' from ' + trigger.source if trigger.source else ''}")
                 elif trigger.type == "KC":
                     trigger_list.append(f"{trigger.trigger} KC")
             triggers_message = " OR ".join(trigger_list)
@@ -284,7 +284,7 @@ def get_team_total_progress(event_id, team_id):
                     for trigger_id in triggers:
                         trigger = EventTriggers.query.filter_by(id=trigger_id).first()
                         if trigger.type == "DROP":
-                            trigger_list.append(f"{trigger.trigger}{" from " + trigger.source if trigger.source else ""}")
+                            trigger_list.append(f"{trigger.trigger}{' from ' + trigger.source if trigger.source else ''}")
                         elif trigger.type == "KC":
                             trigger_list.append(f"{trigger.trigger} KC")
                     triggers_message = " OR ".join(trigger_list)

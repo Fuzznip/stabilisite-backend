@@ -1,7 +1,10 @@
 venv
+.venv
 __pycache__
 .env
 migrations/
 .vscode/
 static/swagger.json
 *.log
+railway_dump.sql
+*.sql.dump

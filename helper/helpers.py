@@ -4,14 +4,26 @@ import decimal
 from datetime import date, datetime
 from uuid import UUID
 
-# Used to serialize the models to be returned from the endpoints
-class Serializer(object):
+class Serializer:
     def serialize(self):
-        return {c: getattr(self, c) for c in inspect(self).attrs.keys()}
+        data = {}
+
+        mapper = inspect(self).mapper
+        for column in mapper.columns:
+            value = getattr(self, column.key)
+
+            if isinstance(value, UUID):
+                value = str(value)
+            elif isinstance(value, (datetime, date)):
+                value = value.isoformat()
+
+            data[column.key] = value
+
+        return data
 
     @staticmethod
-    def serialize_list(l):
-        return [m.serialize() for m in l]
+    def serialize_list(items):
+        return [item.serialize() for item in items]
 
 
 # Used to Serialize the models

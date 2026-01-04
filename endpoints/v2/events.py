@@ -7,7 +7,7 @@ import json
 import logging
 
 @app.route("/api/v2/events", methods=['GET'])
-def get_events():
+def get_events_v2():
     """Get all events with optional filtering and pagination"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
