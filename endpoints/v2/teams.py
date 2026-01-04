@@ -1,6 +1,6 @@
 from app import app, db
 from flask import request, jsonify
-from models.new_events import Team, TeamMember
+from models.new_events import Team, TeamMember, TileStatus, TaskStatus, ChallengeStatus, Tile, Task, Challenge, Trigger
 from models.models import Users
 from services.crud_service import CRUDService
 from helper.helpers import ModelEncoder
@@ -154,17 +154,80 @@ def remove_team_member(team_id, user_id):
 
     return jsonify({'message': 'Team member removed successfully'}), 200
 
-@app.route("/api/v2/teams/<team_id>/leaderboard", methods=['GET'])
-def get_team_leaderboard(team_id):
-    """Get leaderboard for teams in the same event"""
-    team = CRUDService.get_by_id(Team, team_id)
+# =========================================
+# TEAM PROGRESS
+# =========================================
+
+@app.route("/api/v2/teams/<team_id>/progress", methods=['GET'])
+def get_team_progress(team_id):
+    """Get complete progress for a team across all tiles"""
+    team = Team.query.filter_by(id=team_id).first()
     if not team:
         return jsonify({'error': 'Team not found'}), 404
 
-    # Get all teams in the same event, ordered by points
-    teams = Team.query.filter_by(event_id=team.event_id).order_by(Team.points.desc()).all()
+    # Get all tiles for this event
+    tiles = Tile.query.filter_by(event_id=team.event_id).order_by(Tile.index).all()
+
+    progress_data = []
+    for tile in tiles:
+        tile_dict = tile.serialize()
+
+        # Get tile status
+        tile_status = TileStatus.query.filter_by(team_id=team_id, tile_id=tile.id).first()
+        if tile_status:
+            tile_dict['status'] = tile_status.serialize()
+            tile_dict['status']['medal_level'] = tile_status.get_medal_level()
+        else:
+            tile_dict['status'] = {
+                'tasks_completed': 0,
+                'medal_level': 'none'
+            }
+
+        # Get tasks for this tile
+        tasks = Task.query.filter_by(tile_id=tile.id).all()
+        tasks_data = []
+
+        for task in tasks:
+            task_dict = task.serialize()
+
+            # Get task status
+            task_status = TaskStatus.query.filter_by(team_id=team_id, task_id=task.id).first()
+            if task_status:
+                task_dict['status'] = task_status.serialize()
+            else:
+                task_dict['status'] = {'completed': False}
+
+            # Get challenges for this task
+            challenges = Challenge.query.filter_by(task_id=task.id).all()
+            challenges_data = []
+
+            for challenge in challenges:
+                challenge_dict = challenge.serialize()
+
+                # Get trigger
+                trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
+                if trigger:
+                    challenge_dict['trigger'] = trigger.serialize()
+
+                # Get challenge status
+                challenge_status = ChallengeStatus.query.filter_by(team_id=team_id, challenge_id=challenge.id).first()
+                if challenge_status:
+                    challenge_dict['status'] = challenge_status.serialize()
+                else:
+                    challenge_dict['status'] = {
+                        'quantity': 0,
+                        'completed': False
+                    }
+
+                challenges_data.append(challenge_dict)
+
+            task_dict['challenges'] = challenges_data
+            tasks_data.append(task_dict)
+
+        tile_dict['tasks'] = tasks_data
+        progress_data.append(tile_dict)
 
     return jsonify({
-        'data': [t.serialize() for t in teams],
-        'total': len(teams)
+        'team': team.serialize(),
+        'tiles': progress_data
     }), 200

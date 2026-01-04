@@ -30,11 +30,21 @@ def get_events_v2():
 @app.route("/api/v2/events/<id>", methods=['GET'])
 def get_event(id):
     """Get a single event by ID"""
+    from models.new_events import Team, Tile
+
     event = CRUDService.get_by_id(Event, id)
     if not event:
         return jsonify({'error': 'Event not found'}), 404
 
-    return json.dumps(event.serialize(), cls=ModelEncoder), 200
+    # Get related teams and tiles
+    teams = Team.query.filter_by(event_id=id).order_by(Team.points.desc()).all()
+    tiles = Tile.query.filter_by(event_id=id).order_by(Tile.index).all()
+
+    response = event.serialize()
+    response['teams'] = [team.serialize() for team in teams]
+    response['tiles'] = [tile.serialize() for tile in tiles]
+
+    return json.dumps(response, cls=ModelEncoder), 200
 
 @app.route("/api/v2/events", methods=['POST'])
 def create_event():
@@ -86,4 +96,21 @@ def get_active_events():
     return jsonify({
         'data': [event.serialize() for event in active_events],
         'total': len(active_events)
+    }), 200
+
+@app.route("/api/v2/events/<event_id>/leaderboard", methods=['GET'])
+def get_event_leaderboard(event_id):
+    """Get leaderboard for teams in an event"""
+    from models.new_events import Team
+
+    event = CRUDService.get_by_id(Event, event_id)
+    if not event:
+        return jsonify({'error': 'Event not found'}), 404
+
+    # Get all teams in the event, ordered by points
+    teams = Team.query.filter_by(event_id=event_id).order_by(Team.points.desc()).all()
+
+    return jsonify({
+        'data': [t.serialize() for t in teams],
+        'total': len(teams)
     }), 200
