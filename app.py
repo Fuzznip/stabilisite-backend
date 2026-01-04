@@ -86,13 +86,18 @@ app.config['SQLALCHEMY_DATABASE_URI']=f"postgresql://{DATABASE_USERNAME}:{DATABA
 app_context = app.app_context()
 db = SQLAlchemy(app)
 
-cred = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
-# Initialize Firebase only if not already initialized (important for pytest)
-try:
-    firebase_admin.get_app()
-except ValueError:
-    firebase_admin.initialize_app(cred)
-firestore_db = firestore.client()
+# Initialize Firebase only if credentials are available
+if FIREBASE_CREDENTIALS:
+    cred = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
+    # Initialize Firebase only if not already initialized (important for pytest)
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        firebase_admin.initialize_app(cred)
+    firestore_db = firestore.client()
+else:
+    # No Firebase credentials available (e.g., in CI/CD or local testing)
+    firestore_db = None
 
 migrate = Migrate(app, db)
 

@@ -522,17 +522,18 @@ class ActionProcessor:
             team_id: The team ID
         """
         try:
-            firestore_db.collection("drops").add({
-                "action_id": str(action.id),
-                "event_id": str(event_id),
-                "team_id": str(team_id),
-                "player_id": str(action.player_id),
-                "name": action.name,
-                "source": action.source,
-                "quantity": action.quantity,
-                "date": action.date.isoformat() if action.date else None,
-                "created_at": action.created_at.isoformat() if action.created_at else None
-            })
-            logging.info(f"Wrote action {action.id} to Firestore")
+            if firestore_db:
+                firestore_db.collection("drops").add({
+                    "action_id": str(action.id),
+                    "event_id": str(event_id),
+                    "team_id": str(team_id),
+                    "player_id": str(action.player_id),
+                    "name": action.name,
+                    "source": action.source,
+                    "quantity": action.quantity,
+                    "date": action.date.isoformat() if action.date else None,
+                    "created_at": action.created_at.isoformat() if action.created_at else None
+                })
+                logging.info(f"Wrote action {action.id} to Firestore")
         except Exception as e:
             logging.exception(f"Failed to write action {action.id} to Firestore: {e}")
