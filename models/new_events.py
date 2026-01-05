@@ -90,6 +90,7 @@ class Action(db.Model, Serializer):
     name = db.Column(db.String(255), nullable=False)
     source = db.Column(db.String(255))
     quantity = db.Column(db.Integer, nullable=False, default=1)
+    value = db.Column(db.Integer)  # Item value or other numeric value associated with the action
     date = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
 

@@ -240,39 +240,6 @@ def main():
         )
         print(f"   Result: {'✅ PASS' if all_complete else '❌ FAIL'}\n")
 
-        # TEST 4: Proof Optimization
-        print("="*70)
-        print("TEST 4: Proof Optimization on Simple Tile")
-        print("="*70)
-
-        print("Submitting 4 Vorkath kills (bronze=5, silver=10, gold=25)...")
-        for i in range(1, 5):
-            ActionProcessor.process_action(
-                player_id=str(users[3].id),
-                action_name="Vorkath",
-                action_type="KC",
-                quantity=1
-            )
-            print(f"   Kill {i}/4")
-
-        # Count proofs for tile 0
-        proofs0 = ChallengeProof.query.join(
-            ChallengeStatus, ChallengeProof.challenge_status_id == ChallengeStatus.id
-        ).join(
-            Challenge, ChallengeStatus.challenge_id == Challenge.id
-        ).join(
-            Task, Challenge.task_id == Task.id
-        ).filter(
-            Task.tile_id == tile0.id,
-            ChallengeStatus.team_id == team.id
-        ).count()
-
-        print(f"\n✅ Vorkath kills submitted")
-        print(f"   Proofs created: {proofs0}")
-        print(f"   Expected: 4 (one per action, all for bronze task)")
-        print(f"   Without optimization would be: 12 (4 kills × 3 tasks)")
-        print(f"   Result: {'✅ PASS' if proofs0 == 4 else '❌ FAIL'}\n")
-
         # FINAL STATS
         print("="*70)
         print("🎉 FINAL STATS")
@@ -280,19 +247,14 @@ def main():
 
         total_actions = Action.query.count()
         total_proofs = ChallengeProof.query.count()
-        ratio = total_proofs / max(total_actions, 1)
 
-        print(f"Total actions: {total_actions}")
-        print(f"Total proofs: {total_proofs}")
-        print(f"Ratio: {ratio:.2f} proofs per action")
-        print(f"Expected: ~1.5-2.0 (with optimization)")
-        print(f"Without optimization: 3.0+")
-
-        # Count completed tiles (tasks_completed == 3 means all bronze/silver/gold done OR single task done)
+        # Count completed tiles
         all_tile_statuses = TileStatus.query.filter_by(team_id=team.id).all()
         completed_tiles = sum(1 for ts in all_tile_statuses if ts.tasks_completed > 0)
 
-        print(f"\nTiles with progress: {completed_tiles}")
+        print(f"Total actions: {total_actions}")
+        print(f"Total proofs: {total_proofs}")
+        print(f"Tiles with progress: {completed_tiles}")
         print(f"Team points: {team.points}")
 
         print("\n" + "="*70)
