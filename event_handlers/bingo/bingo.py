@@ -102,6 +102,7 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
             completed=False
         )
         db.session.add(challenge_status)
+        db.session.flush()  # Flush to get the ID for the proof
 
     # Add proof (link to action)
     proof = ChallengeProof(
@@ -117,6 +118,66 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
     if challenge_status.quantity >= challenge.quantity and not challenge_status.completed:
         challenge_status.completed = True
 
+        # If this challenge has a parent, update parent progress
+        if challenge.parent_challenge_id:
+            return update_parent_challenge_progress(team, task, challenge)
+        else:
+            # Check if this completes the task
+            return check_and_update_task_completion(team, task)
+
+    db.session.commit()
+    return False
+
+
+def update_parent_challenge_progress(team: Team, task: Task, child_challenge: Challenge) -> bool:
+    """
+    Update parent challenge progress when a child challenge is completed.
+
+    Returns:
+        bool: True if this caused the task to be completed, False otherwise
+    """
+    parent_challenge = Challenge.query.get(child_challenge.parent_challenge_id)
+    if not parent_challenge:
+        return False
+
+    # Count how many child challenges are completed
+    child_challenges = Challenge.query.filter_by(
+        parent_challenge_id=parent_challenge.id
+    ).all()
+
+    completed_children = 0
+    for child in child_challenges:
+        child_status = ChallengeStatus.query.filter_by(
+            team_id=team.id,
+            challenge_id=child.id,
+            completed=True
+        ).first()
+        if child_status:
+            completed_children += 1
+
+    # Get or create parent challenge status
+    parent_status = ChallengeStatus.query.filter_by(
+        team_id=team.id,
+        challenge_id=parent_challenge.id
+    ).first()
+
+    if not parent_status:
+        parent_status = ChallengeStatus(
+            team_id=team.id,
+            challenge_id=parent_challenge.id,
+            quantity=0,
+            completed=False
+        )
+        db.session.add(parent_status)
+        db.session.flush()
+
+    # Update parent quantity to reflect number of children completed
+    parent_status.quantity = completed_children
+
+    # Check if parent challenge is now complete
+    if completed_children >= parent_challenge.quantity and not parent_status.completed:
+        parent_status.completed = True
+        db.session.commit()
         # Check if this completes the task
         return check_and_update_task_completion(team, task)
 
@@ -149,12 +210,13 @@ def check_and_update_task_completion(team: Team, task: Task) -> bool:
     if task_status.completed:
         return False
 
-    # Get all challenges for this task
-    challenges = Challenge.query.filter_by(task_id=task.id).all()
+    # Get all TOP-LEVEL challenges for this task (exclude children of parent challenges)
+    all_challenges = Challenge.query.filter_by(task_id=task.id).all()
+    challenges = [c for c in all_challenges if c.parent_challenge_id is None]
 
     # Check if all challenges are complete
     if task.require_all:
-        # AND logic: all challenges must be complete
+        # AND logic: all top-level challenges must be complete
         all_complete = True
         for challenge in challenges:
             challenge_status = ChallengeStatus.query.filter_by(
@@ -171,7 +233,7 @@ def check_and_update_task_completion(team: Team, task: Task) -> bool:
             db.session.commit()
             return True
     else:
-        # OR logic: any challenge can complete the task
+        # OR logic: any top-level challenge can complete the task
         for challenge in challenges:
             challenge_status = ChallengeStatus.query.filter_by(
                 team_id=team.id,
