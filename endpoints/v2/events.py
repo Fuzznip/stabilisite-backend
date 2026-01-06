@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from app import app
 from flask import request, jsonify
 from models.new_events import Event
@@ -27,6 +28,30 @@ def get_events_v2():
         'per_page': per_page
     }), 200
 
+@app.route("/v2/events/active", methods=['GET'])
+def get_active_event():
+    """Get the currently active bingo event with teams and tiles"""
+    from models.new_events import Team, Tile
+
+    now = datetime.now(timezone.utc)
+    event = Event.query.filter(
+        Event.start_date <= now,
+        Event.end_date >= now
+    ).first()
+
+    if not event:
+        return jsonify({"error": "No active event"}), 404
+
+    # Get related teams and tiles
+    teams = Team.query.filter_by(event_id=event.id).order_by(Team.points.desc()).all()
+    tiles = Tile.query.filter_by(event_id=event.id).order_by(Tile.index).all()
+
+    response = event.serialize()
+    response['teams'] = [team.serialize() for team in teams]
+    response['tiles'] = [tile.serialize() for tile in tiles]
+
+    return json.dumps(response, cls=ModelEncoder), 200
+
 @app.route("/v2/events/<id>", methods=['GET'])
 def get_event(id):
     """Get a single event by ID"""
@@ -45,6 +70,7 @@ def get_event(id):
     response['tiles'] = [tile.serialize() for tile in tiles]
 
     return json.dumps(response, cls=ModelEncoder), 200
+
 
 @app.route("/v2/events", methods=['POST'])
 def create_event():
