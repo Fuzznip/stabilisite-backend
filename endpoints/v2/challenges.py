@@ -6,7 +6,7 @@ from helper.helpers import ModelEncoder
 import json
 import logging
 
-@app.route("/api/v2/challenges", methods=['GET'])
+@app.route("/v2/challenges", methods=['GET'])
 def get_challenges():
     """Get all challenges with optional filtering by task"""
     page = request.args.get('page', 1, type=int)
@@ -28,7 +28,7 @@ def get_challenges():
         'per_page': per_page
     }), 200
 
-@app.route("/api/v2/challenges/<id>", methods=['GET'])
+@app.route("/v2/challenges/<id>", methods=['GET'])
 def get_challenge(id):
     """Get a single challenge by ID"""
     challenge = CRUDService.get_by_id(Challenge, id)
@@ -42,7 +42,7 @@ def get_challenge(id):
 
     return json.dumps(challenge_data, cls=ModelEncoder), 200
 
-@app.route("/api/v2/challenges", methods=['POST'])
+@app.route("/v2/challenges", methods=['POST'])
 def create_challenge():
     """Create a new challenge"""
     data = request.get_json()
@@ -67,7 +67,7 @@ def create_challenge():
 
     return json.dumps(challenge.serialize(), cls=ModelEncoder), 201
 
-@app.route("/api/v2/challenges/<id>", methods=['PUT'])
+@app.route("/v2/challenges/<id>", methods=['PUT'])
 def update_challenge(id):
     """Update a challenge"""
     data = request.get_json()
@@ -80,7 +80,7 @@ def update_challenge(id):
 
     return json.dumps(challenge.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/challenges/<id>", methods=['DELETE'])
+@app.route("/v2/challenges/<id>", methods=['DELETE'])
 def delete_challenge(id):
     """Delete a challenge"""
     success = CRUDService.delete(Challenge, id)
@@ -89,7 +89,7 @@ def delete_challenge(id):
 
     return jsonify({'message': 'Challenge deleted successfully'}), 200
 
-@app.route("/api/v2/challenges/<id>/tree", methods=['GET'])
+@app.route("/v2/challenges/<id>/tree", methods=['GET'])
 def get_challenge_tree(id):
     """Get complete challenge tree (parent and all descendants)"""
     challenge = CRUDService.get_by_id(Challenge, id)

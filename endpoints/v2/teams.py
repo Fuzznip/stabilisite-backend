@@ -7,7 +7,7 @@ from helper.helpers import ModelEncoder
 import json
 import logging
 
-@app.route("/api/v2/teams", methods=['GET'])
+@app.route("/v2/teams", methods=['GET'])
 def get_teams():
     """Get all teams with optional filtering by event"""
     page = request.args.get('page', 1, type=int)
@@ -28,7 +28,7 @@ def get_teams():
         'per_page': per_page
     }), 200
 
-@app.route("/api/v2/teams/<id>", methods=['GET'])
+@app.route("/v2/teams/<id>", methods=['GET'])
 def get_team(id):
     """Get a single team by ID"""
     team = CRUDService.get_by_id(Team, id)
@@ -37,7 +37,7 @@ def get_team(id):
 
     return json.dumps(team.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/teams", methods=['POST'])
+@app.route("/v2/teams", methods=['POST'])
 def create_team_v2():
     """Create a new team"""
     data = request.get_json()
@@ -56,7 +56,7 @@ def create_team_v2():
 
     return json.dumps(team.serialize(), cls=ModelEncoder), 201
 
-@app.route("/api/v2/teams/<id>", methods=['PUT'])
+@app.route("/v2/teams/<id>", methods=['PUT'])
 def update_team(id):
     """Update a team"""
     data = request.get_json()
@@ -69,7 +69,7 @@ def update_team(id):
 
     return json.dumps(team.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/teams/<id>", methods=['DELETE'])
+@app.route("/v2/teams/<id>", methods=['DELETE'])
 def delete_team(id):
     """Delete a team"""
     success = CRUDService.delete(Team, id)
@@ -82,7 +82,7 @@ def delete_team(id):
 # TEAM MEMBER MANAGEMENT
 # =========================================
 
-@app.route("/api/v2/teams/<team_id>/members", methods=['GET'])
+@app.route("/v2/teams/<team_id>/members", methods=['GET'])
 def get_team_members_v2(team_id):
     """Get all members of a team"""
     team = CRUDService.get_by_id(Team, team_id)
@@ -110,7 +110,7 @@ def get_team_members_v2(team_id):
         'total': len(member_data)
     }), 200
 
-@app.route("/api/v2/teams/<team_id>/members", methods=['POST'])
+@app.route("/v2/teams/<team_id>/members", methods=['POST'])
 def add_team_member(team_id):
     """Add a member to a team"""
     team = CRUDService.get_by_id(Team, team_id)
@@ -141,7 +141,7 @@ def add_team_member(team_id):
 
     return json.dumps(member.serialize(), cls=ModelEncoder), 201
 
-@app.route("/api/v2/teams/<team_id>/members/<user_id>", methods=['DELETE'])
+@app.route("/v2/teams/<team_id>/members/<user_id>", methods=['DELETE'])
 def remove_team_member(team_id, user_id):
     """Remove a member from a team"""
     member = TeamMember.query.filter_by(team_id=team_id, user_id=user_id).first()
@@ -158,7 +158,7 @@ def remove_team_member(team_id, user_id):
 # TEAM PROGRESS
 # =========================================
 
-@app.route("/api/v2/teams/<team_id>/progress", methods=['GET'])
+@app.route("/v2/teams/<team_id>/progress", methods=['GET'])
 def get_team_progress(team_id):
     """Get complete progress for a team across all tiles"""
     team = Team.query.filter_by(id=team_id).first()

@@ -6,7 +6,7 @@ from helper.helpers import ModelEncoder
 import json
 import logging
 
-@app.route("/api/v2/tiles", methods=['GET'])
+@app.route("/v2/tiles", methods=['GET'])
 def get_tiles():
     """Get all tiles with optional filtering by event"""
     page = request.args.get('page', 1, type=int)
@@ -27,7 +27,7 @@ def get_tiles():
         'per_page': per_page
     }), 200
 
-@app.route("/api/v2/tiles/<id>", methods=['GET'])
+@app.route("/v2/tiles/<id>", methods=['GET'])
 def get_tile(id):
     """Get a single tile by ID with its tasks, challenges, and triggers"""
     tile = CRUDService.get_by_id(Tile, id)
@@ -64,7 +64,7 @@ def get_tile(id):
 
     return json.dumps(tile_data, cls=ModelEncoder), 200
 
-@app.route("/api/v2/tiles", methods=['POST'])
+@app.route("/v2/tiles", methods=['POST'])
 def create_tile():
     """Create a new tile"""
     data = request.get_json()
@@ -83,7 +83,7 @@ def create_tile():
 
     return json.dumps(tile.serialize(), cls=ModelEncoder), 201
 
-@app.route("/api/v2/tiles/<id>", methods=['PUT'])
+@app.route("/v2/tiles/<id>", methods=['PUT'])
 def update_tile(id):
     """Update a tile"""
     data = request.get_json()
@@ -96,7 +96,7 @@ def update_tile(id):
 
     return json.dumps(tile.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/tiles/<id>", methods=['DELETE'])
+@app.route("/v2/tiles/<id>", methods=['DELETE'])
 def delete_tile(id):
     """Delete a tile"""
     success = CRUDService.delete(Tile, id)
@@ -109,7 +109,7 @@ def delete_tile(id):
 # TILE PROGRESS
 # =========================================
 
-@app.route("/api/v2/tiles/<tile_id>/progress", methods=['GET'])
+@app.route("/v2/tiles/<tile_id>/progress", methods=['GET'])
 def get_tile_progress(tile_id):
     """Get progress for a specific tile across all teams in the event"""
     tile = CRUDService.get_by_id(Tile, tile_id)

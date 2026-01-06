@@ -6,7 +6,7 @@ from helper.helpers import ModelEncoder
 import json
 import logging
 
-@app.route("/api/v2/triggers", methods=['GET'])
+@app.route("/v2/triggers", methods=['GET'])
 def get_triggers():
     """Get all triggers with optional filtering"""
     page = request.args.get('page', 1, type=int)
@@ -29,7 +29,7 @@ def get_triggers():
         'per_page': per_page
     }), 200
 
-@app.route("/api/v2/triggers/<id>", methods=['GET'])
+@app.route("/v2/triggers/<id>", methods=['GET'])
 def get_trigger(id):
     """Get a single trigger by ID"""
     trigger = CRUDService.get_by_id(Trigger, id)
@@ -38,7 +38,7 @@ def get_trigger(id):
 
     return json.dumps(trigger.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/triggers", methods=['POST'])
+@app.route("/v2/triggers", methods=['POST'])
 def create_trigger():
     """Create a new trigger"""
     data = request.get_json()
@@ -61,7 +61,7 @@ def create_trigger():
 
     return json.dumps(trigger.serialize(), cls=ModelEncoder), 201
 
-@app.route("/api/v2/triggers/<id>", methods=['PUT'])
+@app.route("/v2/triggers/<id>", methods=['PUT'])
 def update_trigger(id):
     """Update a trigger"""
     data = request.get_json()
@@ -74,7 +74,7 @@ def update_trigger(id):
 
     return json.dumps(trigger.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/triggers/<id>", methods=['DELETE'])
+@app.route("/v2/triggers/<id>", methods=['DELETE'])
 def delete_trigger(id):
     """Delete a trigger"""
     success = CRUDService.delete(Trigger, id)
@@ -83,7 +83,7 @@ def delete_trigger(id):
 
     return jsonify({'message': 'Trigger deleted successfully'}), 200
 
-@app.route("/api/v2/triggers/search", methods=['GET'])
+@app.route("/v2/triggers/search", methods=['GET'])
 def search_triggers():
     """Search triggers by name (partial match)"""
     query = request.args.get('q', '').strip()

@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime
 
-@app.route("/api/v2/actions", methods=['GET'])
+@app.route("/v2/actions", methods=['GET'])
 def get_actions():
     """Get all actions with optional filtering"""
     page = request.args.get('page', 1, type=int)
@@ -31,7 +31,7 @@ def get_actions():
         'per_page': per_page
     }), 200
 
-@app.route("/api/v2/actions/<id>", methods=['GET'])
+@app.route("/v2/actions/<id>", methods=['GET'])
 def get_action(id):
     """Get a single action by ID"""
     action = CRUDService.get_by_id(Action, id)
@@ -40,7 +40,7 @@ def get_action(id):
 
     return json.dumps(action.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/actions", methods=['POST'])
+@app.route("/v2/actions", methods=['POST'])
 def create_action():
     """
     Create a new action and process it for active events
@@ -101,7 +101,7 @@ def create_action():
         'notifications': result['notifications']
     }), 201
 
-@app.route("/api/v2/actions/<id>", methods=['DELETE'])
+@app.route("/v2/actions/<id>", methods=['DELETE'])
 def delete_action(id):
     """Delete an action (also removes associated challenge proofs)"""
     success = CRUDService.delete(Action, id)

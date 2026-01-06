@@ -6,7 +6,7 @@ from helper.helpers import ModelEncoder
 import json
 import logging
 
-@app.route("/api/v2/events", methods=['GET'])
+@app.route("/v2/events", methods=['GET'])
 def get_events_v2():
     """Get all events with optional filtering and pagination"""
     page = request.args.get('page', 1, type=int)
@@ -27,7 +27,7 @@ def get_events_v2():
         'per_page': per_page
     }), 200
 
-@app.route("/api/v2/events/<id>", methods=['GET'])
+@app.route("/v2/events/<id>", methods=['GET'])
 def get_event(id):
     """Get a single event by ID"""
     from models.new_events import Team, Tile
@@ -46,7 +46,7 @@ def get_event(id):
 
     return json.dumps(response, cls=ModelEncoder), 200
 
-@app.route("/api/v2/events", methods=['POST'])
+@app.route("/v2/events", methods=['POST'])
 def create_event():
     """Create a new event"""
     data = request.get_json()
@@ -65,7 +65,7 @@ def create_event():
 
     return json.dumps(event.serialize(), cls=ModelEncoder), 201
 
-@app.route("/api/v2/events/<id>", methods=['PUT'])
+@app.route("/v2/events/<id>", methods=['PUT'])
 def update_event(id):
     """Update an event"""
     data = request.get_json()
@@ -78,7 +78,7 @@ def update_event(id):
 
     return json.dumps(event.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/events/<id>", methods=['DELETE'])
+@app.route("/v2/events/<id>", methods=['DELETE'])
 def delete_event(id):
     """Delete an event"""
     success = CRUDService.delete(Event, id)
@@ -86,31 +86,3 @@ def delete_event(id):
         return jsonify({'error': 'Event not found'}), 404
 
     return jsonify({'message': 'Event deleted successfully'}), 200
-
-@app.route("/api/v2/events/active", methods=['GET'])
-def get_active_events():
-    """Get all currently active events"""
-    events = Event.query.all()
-    active_events = [event for event in events if event.is_active()]
-
-    return jsonify({
-        'data': [event.serialize() for event in active_events],
-        'total': len(active_events)
-    }), 200
-
-@app.route("/api/v2/events/<event_id>/leaderboard", methods=['GET'])
-def get_event_leaderboard(event_id):
-    """Get leaderboard for teams in an event"""
-    from models.new_events import Team
-
-    event = CRUDService.get_by_id(Event, event_id)
-    if not event:
-        return jsonify({'error': 'Event not found'}), 404
-
-    # Get all teams in the event, ordered by points
-    teams = Team.query.filter_by(event_id=event_id).order_by(Team.points.desc()).all()
-
-    return jsonify({
-        'data': [t.serialize() for t in teams],
-        'total': len(teams)
-    }), 200

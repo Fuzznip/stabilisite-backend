@@ -6,7 +6,7 @@ from helper.helpers import ModelEncoder
 import json
 import logging
 
-@app.route("/api/v2/tasks", methods=['GET'])
+@app.route("/v2/tasks", methods=['GET'])
 def get_tasks():
     """Get all tasks with optional filtering by tile"""
     page = request.args.get('page', 1, type=int)
@@ -26,7 +26,7 @@ def get_tasks():
         'per_page': per_page
     }), 200
 
-@app.route("/api/v2/tasks/<id>", methods=['GET'])
+@app.route("/v2/tasks/<id>", methods=['GET'])
 def get_task(id):
     """Get a single task by ID"""
     task = CRUDService.get_by_id(Task, id)
@@ -35,7 +35,7 @@ def get_task(id):
 
     return json.dumps(task.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/tasks", methods=['POST'])
+@app.route("/v2/tasks", methods=['POST'])
 def create_task():
     """Create a new task"""
     data = request.get_json()
@@ -58,7 +58,7 @@ def create_task():
 
     return json.dumps(task.serialize(), cls=ModelEncoder), 201
 
-@app.route("/api/v2/tasks/<id>", methods=['PUT'])
+@app.route("/v2/tasks/<id>", methods=['PUT'])
 def update_task(id):
     """Update a task"""
     data = request.get_json()
@@ -71,7 +71,7 @@ def update_task(id):
 
     return json.dumps(task.serialize(), cls=ModelEncoder), 200
 
-@app.route("/api/v2/tasks/<id>", methods=['DELETE'])
+@app.route("/v2/tasks/<id>", methods=['DELETE'])
 def delete_task(id):
     """Delete a task"""
     success = CRUDService.delete(Task, id)
