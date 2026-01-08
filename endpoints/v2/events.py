@@ -31,7 +31,8 @@ def get_events_v2():
 @app.route("/v2/events/active", methods=['GET'])
 def get_active_event():
     """Get the currently active bingo event with teams and tiles"""
-    from models.new_events import Team, Tile
+    from models.new_events import Team, Tile, TeamMember
+    from models.models import Users
 
     now = datetime.now(timezone.utc)
     event = Event.query.filter(
@@ -47,7 +48,20 @@ def get_active_event():
     tiles = Tile.query.filter_by(event_id=event.id).order_by(Tile.index).all()
 
     response = event.serialize()
-    response['teams'] = [team.serialize() for team in teams]
+
+    # Serialize teams with member names
+    teams_data = []
+    for team in teams:
+        team_dict = team.serialize()
+        members = TeamMember.query.filter_by(team_id=team.id).all()
+        team_dict['members'] = [
+            Users.query.get(m.user_id).runescape_name
+            for m in members
+            if Users.query.get(m.user_id)
+        ]
+        teams_data.append(team_dict)
+
+    response['teams'] = teams_data
     response['tiles'] = [tile.serialize() for tile in tiles]
 
     return json.dumps(response, cls=ModelEncoder), 200

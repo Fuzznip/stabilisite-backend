@@ -183,13 +183,28 @@ def get_tile_progress(tile_id):
             challenges = Challenge.query.filter_by(task_id=task.id).all()
             for challenge in challenges:
                 challenge_status = ChallengeStatus.query.filter_by(team_id=team.id, challenge_id=challenge.id).first()
+
+                # Include full challenge metadata
                 challenge_status_dict = {
                     'challenge_id': str(challenge.id),
+                    'task_id': str(challenge.task_id),
+                    'parent_challenge_id': str(challenge.parent_challenge_id) if challenge.parent_challenge_id else None,
                     'quantity': challenge_status.quantity if challenge_status else 0,
-                    'completed': challenge_status.completed if challenge_status else False
+                    'required': challenge.quantity,
+                    'completed': challenge_status.completed if challenge_status else False,
+                    'require_all': challenge.require_all
                 }
+
+                # Add trigger details
+                trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
+                if trigger:
+                    challenge_status_dict['trigger'] = trigger.serialize()
+
                 if challenge_status:
                     challenge_status_dict['status_id'] = str(challenge_status.id)
+                    challenge_status_dict['created_at'] = challenge_status.created_at.isoformat()
+                    challenge_status_dict['updated_at'] = challenge_status.updated_at.isoformat()
+
                 challenge_statuses.append(challenge_status_dict)
 
         team_dict['challenge_statuses'] = challenge_statuses

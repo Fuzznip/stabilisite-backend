@@ -203,7 +203,7 @@ def get_team_progress(team_id):
 
             for challenge in challenges:
                 challenge_dict = challenge.serialize()
-
+                
                 # Get trigger
                 trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
                 if trigger:
@@ -227,7 +227,4 @@ def get_team_progress(team_id):
         tile_dict['tasks'] = tasks_data
         progress_data.append(tile_dict)
 
-    return jsonify({
-        'team': team.serialize(),
-        'tiles': progress_data
-    }), 200
+    return progress_data, 200
