@@ -113,6 +113,7 @@ class Trigger(db.Model, Serializer):
     source = db.Column(db.String(255))
     type = db.Column(db.String(50), nullable=False, default='DROP')
     img_path = db.Column(db.String(512))
+    wiki_id = db.Column(db.Integer)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
 
