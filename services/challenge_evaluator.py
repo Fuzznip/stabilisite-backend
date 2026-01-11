@@ -222,6 +222,7 @@ class ChallengeEvaluator:
             List of parent challenge IDs that newly completed
         """
         from app import db
+        from sqlalchemy import text
 
         newly_completed_parents = []
 
@@ -232,30 +233,47 @@ class ChallengeEvaluator:
             if not parent:
                 break
 
-            # Check if parent is now complete
-            parent_complete = ChallengeEvaluator.evaluate_challenge(parent.id, team_id)
-
             # Get or create parent status
             parent_status = ChallengeStatus.query.filter_by(
                 challenge_id=parent.id,
                 team_id=team_id
             ).first()
 
+            was_completed = False
             if not parent_status:
+                # Create parent status with initial quantity based on child's value
                 parent_status = ChallengeStatus(
                     challenge_id=parent.id,
                     team_id=team_id,
-                    quantity=0,
-                    completed=parent_complete
+                    quantity=current_challenge.value,
+                    completed=False
                 )
                 db.session.add(parent_status)
+                db.session.flush()
             else:
                 was_completed = parent_status.completed
-                parent_status.completed = parent_complete
 
-                # Track newly completed parents
-                if parent_complete and not was_completed:
-                    newly_completed_parents.append(str(parent.id))
+                # Increment parent quantity by child's value (not just +1)
+                db.session.execute(
+                    text("""
+                        UPDATE new_stability.challenge_statuses
+                        SET quantity = quantity + :value,
+                            updated_at = NOW()
+                        WHERE id = :status_id
+                    """),
+                    {"value": current_challenge.value, "status_id": str(parent_status.id)}
+                )
+                db.session.flush()
+                # Refresh to get updated quantity
+                db.session.refresh(parent_status)
+
+            # Check if parent is now complete
+            parent_complete = ChallengeEvaluator.evaluate_challenge(parent.id, team_id)
+            parent_status.completed = parent_complete
+
+            # Track newly completed parents
+            if parent_complete and not was_completed:
+                newly_completed_parents.append(str(parent.id))
 
             db.session.commit()
 

@@ -60,6 +60,8 @@ def create_challenge():
         data['require_all'] = False
     if 'quantity' not in data:
         data['quantity'] = 1
+    if 'value' not in data:
+        data['value'] = 1
 
     challenge = CRUDService.create(Challenge, data)
     if not challenge:

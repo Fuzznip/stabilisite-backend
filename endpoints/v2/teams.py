@@ -203,11 +203,12 @@ def get_team_progress(team_id):
 
             for challenge in challenges:
                 challenge_dict = challenge.serialize()
-                
-                # Get trigger
-                trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
-                if trigger:
-                    challenge_dict['trigger'] = trigger.serialize()
+
+                # Get trigger (only if challenge has a trigger)
+                if challenge.trigger_id:
+                    trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
+                    if trigger:
+                        challenge_dict['trigger'] = trigger.serialize()
 
                 # Get challenge status
                 challenge_status = ChallengeStatus.query.filter_by(team_id=team_id, challenge_id=challenge.id).first()

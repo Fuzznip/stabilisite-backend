@@ -43,17 +43,18 @@ def get_tile(id):
     for task in tasks:
         task_dict = task.serialize()
 
-        # Get all challenges for this task
-        challenges = Challenge.query.filter_by(task_id=task.id).all()
+        # Get all challenges for this task, ordered by ID (preserves creation order)
+        challenges = Challenge.query.filter_by(task_id=task.id).order_by(Challenge.id).all()
         challenges_data = []
 
         for challenge in challenges:
             challenge_dict = challenge.serialize()
 
-            # Get trigger info
-            trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
-            if trigger:
-                challenge_dict['trigger'] = trigger.serialize()
+            # Get trigger info (only if challenge has a trigger)
+            if challenge.trigger_id:
+                trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
+                if trigger:
+                    challenge_dict['trigger'] = trigger.serialize()
 
             challenges_data.append(challenge_dict)
 
@@ -126,17 +127,18 @@ def get_tile_progress(tile_id):
     for task in tasks:
         task_dict = task.serialize()
 
-        # Get all challenges for this task
-        challenges = Challenge.query.filter_by(task_id=task.id).all()
+        # Get all challenges for this task, ordered by ID (preserves creation order)
+        challenges = Challenge.query.filter_by(task_id=task.id).order_by(Challenge.id).all()
         challenges_data = []
 
         for challenge in challenges:
             challenge_dict = challenge.serialize()
 
-            # Get trigger info
-            trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
-            if trigger:
-                challenge_dict['trigger'] = trigger.serialize()
+            # Get trigger info (only if challenge has a trigger)
+            if challenge.trigger_id:
+                trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
+                if trigger:
+                    challenge_dict['trigger'] = trigger.serialize()
 
             challenges_data.append(challenge_dict)
 
@@ -192,13 +194,15 @@ def get_tile_progress(tile_id):
                     'quantity': challenge_status.quantity if challenge_status else 0,
                     'required': challenge.quantity,
                     'completed': challenge_status.completed if challenge_status else False,
-                    'require_all': challenge.require_all
+                    'require_all': challenge.require_all,
+                    'value': challenge.value
                 }
 
-                # Add trigger details
-                trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
-                if trigger:
-                    challenge_status_dict['trigger'] = trigger.serialize()
+                # Add trigger details (only if challenge has a trigger)
+                if challenge.trigger_id:
+                    trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
+                    if trigger:
+                        challenge_status_dict['trigger'] = trigger.serialize()
 
                 if challenge_status:
                     challenge_status_dict['status_id'] = str(challenge_status.id)

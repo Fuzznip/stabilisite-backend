@@ -53,6 +53,10 @@ def process_submission_for_team(event: Event, submission: EventSubmission, team:
                 continue
 
             for challenge in challenges:
+                # Skip parent challenges (no trigger)
+                if not challenge.trigger_id:
+                    continue
+
                 # Get the trigger for this challenge
                 trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
                 if not trigger:

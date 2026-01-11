@@ -10,7 +10,7 @@ import logging
 def get_triggers():
     """Get all triggers with optional filtering"""
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 100, type=int)
+    per_page = request.args.get('per_page', 500, type=int)
     order_by = request.args.get('order_by', 'name')
 
     # Optional filters
