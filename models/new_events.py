@@ -177,7 +177,7 @@ class Challenge(db.Model, Serializer):
     parent_challenge_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenges.id', ondelete='CASCADE'))
     trigger_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.triggers.id', ondelete='RESTRICT'), nullable=True)
     require_all = db.Column(db.Boolean, nullable=False, default=False)
-    quantity = db.Column(db.Integer, nullable=False, default=1)
+    quantity = db.Column(db.Integer, nullable=True, default=1)
     value = db.Column(db.Integer, nullable=False, default=1)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))

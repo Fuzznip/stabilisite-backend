@@ -119,7 +119,8 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
     challenge_status.quantity += quantity
 
     # Check if challenge is now complete
-    if challenge_status.quantity >= challenge.quantity and not challenge_status.completed:
+    # If quantity is NULL, challenge is repeatable and never completes
+    if challenge.quantity is not None and challenge_status.quantity >= challenge.quantity and not challenge_status.completed:
         challenge_status.completed = True
 
         # If this challenge has a parent, update parent progress
@@ -128,6 +129,10 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
         else:
             # Check if this completes the task
             return check_and_update_task_completion(team, task)
+    elif challenge.quantity is None and challenge.parent_challenge_id:
+        # Repeatable challenge (quantity=NULL) with a parent
+        # Update parent on every submission since this child never "completes"
+        return update_parent_challenge_progress(team, task, challenge)
 
     db.session.commit()
     return False
@@ -144,20 +149,26 @@ def update_parent_challenge_progress(team: Team, task: Task, child_challenge: Ch
     if not parent_challenge:
         return False
 
-    # Count how many child challenges are completed
+    # Sum the progress of all child challenges
     child_challenges = Challenge.query.filter_by(
         parent_challenge_id=parent_challenge.id
     ).all()
 
-    completed_children = 0
+    total_children_value = 0
     for child in child_challenges:
         child_status = ChallengeStatus.query.filter_by(
             team_id=team.id,
-            challenge_id=child.id,
-            completed=True
+            challenge_id=child.id
         ).first()
+
         if child_status:
-            completed_children += 1
+            if child.quantity is None:
+                # Repeatable child: multiply status quantity by child's value
+                # Each submission counts as (child.value) points towards parent
+                total_children_value += child_status.quantity * (child.value or 1)
+            elif child_status.completed:
+                # Completable child: add the child's value when completed
+                total_children_value += (child.value or 1)
 
     # Get or create parent challenge status
     parent_status = ChallengeStatus.query.filter_by(
@@ -175,15 +186,21 @@ def update_parent_challenge_progress(team: Team, task: Task, child_challenge: Ch
         db.session.add(parent_status)
         db.session.flush()
 
-    # Update parent quantity to reflect number of children completed
-    parent_status.quantity = completed_children
+    # Update parent quantity to reflect sum of children progress
+    parent_status.quantity = total_children_value
 
     # Check if parent challenge is now complete
-    if completed_children >= parent_challenge.quantity and not parent_status.completed:
+    if total_children_value >= parent_challenge.quantity and not parent_status.completed:
         parent_status.completed = True
         db.session.commit()
-        # Check if this completes the task
-        return check_and_update_task_completion(team, task)
+
+        # Check if parent has a parent (grandparent structure)
+        if parent_challenge.parent_challenge_id:
+            # Recursively update grandparent
+            return update_parent_challenge_progress(team, task, parent_challenge)
+        else:
+            # No grandparent, check if this completes the task
+            return check_and_update_task_completion(team, task)
 
     db.session.commit()
     return False
