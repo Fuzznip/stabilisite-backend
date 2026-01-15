@@ -1,0 +1,713 @@
+{
+  "paths": {
+    "/v2/events": {
+      "get": {
+        "tags": ["V2 Events"],
+        "summary": "Get all events",
+        "description": "Returns a list of all events in the new event system",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 100 }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": { "type": "string", "default": "-created_at" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Event" }
+                    },
+                    "total": { "type": "integer" },
+                    "page": { "type": "integer" },
+                    "per_page": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["V2 Events"],
+        "summary": "Create a new event",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewEvent" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Event created successfully" },
+          "400": { "description": "Invalid input" }
+        }
+      }
+    },
+    "/v2/events/{id}": {
+      "get": {
+        "tags": ["V2 Events"],
+        "summary": "Get event by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Successful operation" },
+          "404": { "description": "Event not found" }
+        }
+      },
+      "put": {
+        "tags": ["V2 Events"],
+        "summary": "Update an event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateEvent" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Event updated successfully" },
+          "404": { "description": "Event not found" }
+        }
+      },
+      "delete": {
+        "tags": ["V2 Events"],
+        "summary": "Delete an event",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Event deleted successfully" },
+          "404": { "description": "Event not found" }
+        }
+      }
+    },
+    "/v2/teams": {
+      "get": {
+        "tags": ["V2 Teams"],
+        "summary": "Get all teams",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "query",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50 }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": { "type": "string", "default": "-points" }
+          }
+        ],
+        "responses": { "200": { "description": "Successful operation" } }
+      },
+      "post": {
+        "tags": ["V2 Teams"],
+        "summary": "Create a new team",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewTeam" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Team created successfully" },
+          "400": { "description": "Invalid input" }
+        }
+      }
+    },
+    "/v2/teams/{id}": {
+      "get": {
+        "tags": ["V2 Teams"],
+        "summary": "Get team by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Successful operation" },
+          "404": { "description": "Team not found" }
+        }
+      },
+      "delete": {
+        "tags": ["V2 Teams"],
+        "summary": "Delete a team",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Team deleted successfully" },
+          "404": { "description": "Team not found" }
+        }
+      }
+    },
+    "/v2/teams/{team_id}/members": {
+      "get": {
+        "tags": ["V2 Teams"],
+        "summary": "Get team members",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": { "200": { "description": "Successful operation" } }
+      },
+      "post": {
+        "tags": ["V2 Teams"],
+        "summary": "Add team member",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewTeamMember" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Member added successfully" },
+          "400": { "description": "Invalid input" }
+        }
+      }
+    },
+    "/v2/actions": {
+      "get": {
+        "tags": ["V2 Actions"],
+        "summary": "Get all actions",
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "query",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          { "name": "name", "in": "query", "schema": { "type": "string" } },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 100 }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": { "type": "string", "default": "-date" }
+          }
+        ],
+        "responses": { "200": { "description": "Successful operation" } }
+      },
+      "post": {
+        "tags": ["V2 Actions"],
+        "summary": "Submit a new action",
+        "description": "Creates a new action and processes it for all active events. This triggers task completion checks, bingo detection, and notifications.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewAction" },
+              "examples": {
+                "kc_example": {
+                  "summary": "Kill Count",
+                  "value": {
+                    "player_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "name": "Vorkath",
+                    "type": "KC",
+                    "quantity": 1
+                  }
+                },
+                "drop_example": {
+                  "summary": "Item Drop",
+                  "value": {
+                    "player_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "name": "Magic fang",
+                    "type": "DROP",
+                    "source": "Zulrah",
+                    "quantity": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Action processed successfully" },
+          "400": { "description": "Invalid input" }
+        }
+      }
+    },
+    "/v2/actions/{id}": {
+      "delete": {
+        "tags": ["V2 Actions"],
+        "summary": "Delete an action",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Action deleted successfully" },
+          "404": { "description": "Action not found" }
+        }
+      }
+    },
+    "/v2/tiles": {
+      "get": {
+        "tags": ["V2 Tiles"],
+        "summary": "Get all tiles",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "query",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": { "type": "integer", "default": 100 }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": { "type": "string", "default": "index" }
+          }
+        ],
+        "responses": { "200": { "description": "Successful operation" } }
+      },
+      "post": {
+        "tags": ["V2 Tiles"],
+        "summary": "Create a new tile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewTile" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Tile created successfully" },
+          "400": { "description": "Invalid input" }
+        }
+      }
+    },
+    "/v2/tiles/{id}": {
+      "get": {
+        "tags": ["V2 Tiles"],
+        "summary": "Get tile by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Successful operation" },
+          "404": { "description": "Tile not found" }
+        }
+      },
+      "delete": {
+        "tags": ["V2 Tiles"],
+        "summary": "Delete a tile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Tile deleted successfully" },
+          "404": { "description": "Tile not found" }
+        }
+      }
+    },
+    "/v2/tasks": {
+      "post": {
+        "tags": ["V2 Tasks"],
+        "summary": "Create a new task",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewTask" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Task created successfully" },
+          "400": { "description": "Invalid input" }
+        }
+      }
+    },
+    "/v2/tasks/{id}": {
+      "delete": {
+        "tags": ["V2 Tasks"],
+        "summary": "Delete a task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Task deleted successfully" },
+          "404": { "description": "Task not found" }
+        }
+      }
+    },
+    "/v2/challenges": {
+      "post": {
+        "tags": ["V2 Challenges"],
+        "summary": "Create a new challenge",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewChallenge" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Challenge created successfully" },
+          "400": { "description": "Invalid input" }
+        }
+      }
+    },
+    "/v2/challenges/{id}": {
+      "delete": {
+        "tags": ["V2 Challenges"],
+        "summary": "Delete a challenge",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Challenge deleted successfully" },
+          "404": { "description": "Challenge not found" }
+        }
+      }
+    },
+    "/v2/triggers": {
+      "post": {
+        "tags": ["V2 Triggers"],
+        "summary": "Create a new trigger",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewTrigger" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Trigger created successfully" },
+          "400": { "description": "Invalid input" }
+        }
+      }
+    },
+    "/v2/triggers/{id}": {
+      "delete": {
+        "tags": ["V2 Triggers"],
+        "summary": "Delete a trigger",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Trigger deleted successfully" },
+          "404": { "description": "Trigger not found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Event": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "start_date": { "type": "string", "format": "date-time" },
+          "end_date": { "type": "string", "format": "date-time" },
+          "thread_id": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "NewEvent": {
+        "type": "object",
+        "required": ["name", "start_date", "end_date"],
+        "properties": {
+          "name": { "type": "string" },
+          "start_date": { "type": "string", "format": "date-time" },
+          "end_date": { "type": "string", "format": "date-time" },
+          "thread_id": { "type": "string", "nullable": true }
+        }
+      },
+      "UpdateEvent": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "start_date": { "type": "string", "format": "date-time" },
+          "end_date": { "type": "string", "format": "date-time" },
+          "thread_id": { "type": "string", "nullable": true }
+        }
+      },
+      "Team": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "event_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "image_url": { "type": "string", "nullable": true },
+          "points": { "type": "integer" }
+        }
+      },
+      "NewTeam": {
+        "type": "object",
+        "required": ["event_id", "name"],
+        "properties": {
+          "event_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "image_url": { "type": "string", "nullable": true }
+        }
+      },
+      "NewTeamMember": {
+        "type": "object",
+        "required": ["user_id"],
+        "properties": {
+          "user_id": { "type": "string", "format": "uuid" }
+        }
+      },
+      "Action": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "player_id": { "type": "string", "format": "uuid" },
+          "type": {
+            "type": "string",
+            "enum": ["KC", "DROP", "QUEST", "ACHIEVEMENT", "DIARY", "SKILL"]
+          },
+          "name": { "type": "string" },
+          "source": { "type": "string", "nullable": true },
+          "quantity": { "type": "integer" },
+          "date": { "type": "string", "format": "date-time" }
+        }
+      },
+      "NewAction": {
+        "type": "object",
+        "required": ["player_id", "name"],
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the player performing the action"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the action (e.g., 'Vorkath' for KC, 'Magic fang' for DROP)"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["KC", "DROP", "QUEST", "ACHIEVEMENT", "DIARY", "SKILL"],
+            "default": "DROP",
+            "description": "Type of action"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional source (e.g., 'Zulrah' for item drops)"
+          },
+          "quantity": {
+            "type": "integer",
+            "default": 1,
+            "description": "Quantity"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the action occurred"
+          }
+        }
+      },
+      "Tile": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "event_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "img_src": { "type": "string", "nullable": true },
+          "index": { "type": "integer", "minimum": 0, "maximum": 24 }
+        }
+      },
+      "NewTile": {
+        "type": "object",
+        "required": ["event_id", "name", "index"],
+        "properties": {
+          "event_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "img_src": { "type": "string", "nullable": true },
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 24,
+            "description": "Position on 5x5 bingo board (0-24)"
+          }
+        }
+      },
+      "NewTask": {
+        "type": "object",
+        "required": ["tile_id", "name"],
+        "properties": {
+          "tile_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "require_all": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether all child challenges must complete (AND vs OR)"
+          }
+        }
+      },
+      "NewChallenge": {
+        "type": "object",
+        "required": ["task_id", "trigger_id"],
+        "properties": {
+          "task_id": { "type": "string", "format": "uuid" },
+          "trigger_id": { "type": "string", "format": "uuid" },
+          "parent_challenge_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Parent challenge for hierarchical challenges"
+          },
+          "require_all": {
+            "type": "boolean",
+            "default": false,
+            "description": "AND/OR logic for child challenges"
+          },
+          "quantity": {
+            "type": "integer",
+            "default": 1,
+            "description": "How many times this challenge must be completed"
+          }
+        }
+      },
+      "NewTrigger": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Trigger name (e.g., 'Vorkath', 'Magic fang')"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional source filter"
+          },
+          "type": {
+            "type": "string",
+            "default": "DROP",
+            "description": "Type of trigger"
+          },
+          "img_path": {
+            "type": "string",
+            "nullable": true,
+            "description": "Path to image icon"
+          }
+        }
+      }
+    }
+  }
+}

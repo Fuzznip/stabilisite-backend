@@ -86,9 +86,18 @@ app.config['SQLALCHEMY_DATABASE_URI']=f"postgresql://{DATABASE_USERNAME}:{DATABA
 app_context = app.app_context()
 db = SQLAlchemy(app)
 
-cred = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
-firebase_admin.initialize_app(cred)
-firestore_db = firestore.client()
+# Initialize Firebase only if credentials are available
+if FIREBASE_CREDENTIALS:
+    cred = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
+    # Initialize Firebase only if not already initialized (important for pytest)
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        firebase_admin.initialize_app(cred)
+    firestore_db = firestore.client()
+else:
+    # No Firebase credentials available (e.g., in CI/CD or local testing)
+    firestore_db = None
 
 migrate = Migrate(app, db)
 
@@ -113,11 +122,12 @@ swaggerui_blueprint = get_swaggerui_blueprint(SWAGGER_URL, API_URL)
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
 # Needed to auto generate tables using SQLAlchemy
-from models import models, stability_party_3, bingo
+from models import models, stability_party_3, bingo, new_events
 
 # make app aware of all endpoints
 from endpoints import users, announcements, splits, applications, diary, ranks, raid_tier, discord_management
 from endpoints.events import item_whitelist, submit, sp3_moderation, sp3_game, events, items, bingo
+from endpoints.v2 import events as v2_events, teams, triggers, tiles, tasks, challenges, actions, statuses
 
 # Initialize event handlers
 from event_handlers import event_handler_init

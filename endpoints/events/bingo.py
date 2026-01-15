@@ -2,6 +2,7 @@ from app import app, db
 from flask import request, jsonify
 from models.bingo import BingoChallenges, BingoTiles
 from models.models import EventChallenges, EventTasks, EventTriggers, Events, EventTeams
+from models.new_events import Event
 from datetime import datetime, timezone
 from helper.helpers import ModelEncoder
 import json
