@@ -103,11 +103,11 @@ def create_region_challenge_notification(challenge: EventChallenges, event: Even
     ]
 
     if submission.type == "LOOT":
-        notification_title = f"{submission.rsn}: {f"{submission.quantity}x " if submission.quantity > 1 else ""}{submission.trigger} from {submission.source}"
+        notification_title = f"{submission.rsn}: {f'{submission.quantity}x ' if submission.quantity > 1 else ''}{submission.trigger} from {submission.source}"
     elif submission.type == "KC":
         notification_title = f"{submission.rsn}: Killed {submission.trigger}"
     else:
-        notification_title = f"{submission.rsn}: {f"{submission.quantity}x " if submission.quantity > 1 else ""}{submission.trigger} from {submission.source}"
+        notification_title = f"{submission.rsn}: {f'{submission.quantity}x ' if submission.quantity > 1 else ''}{submission.trigger} from {submission.source}"
 
     return NotificationResponse(
         threadId=event.thread_id,
@@ -151,11 +151,11 @@ def create_tile_challenge_notification(challenge_mapping: SP3EventTileChallengeM
     ]
 
     if submission.type == "LOOT":
-        notification_title = f"{submission.rsn}: {f"{submission.quantity}x " if submission.quantity > 1 else ""}{submission.trigger} from {submission.source}"
+        notification_title = f"{submission.rsn}: {f'{submission.quantity}x ' if submission.quantity > 1 else ''}{submission.trigger} from {submission.source}"
     elif submission.type == "KC":
         notification_title = f"{submission.rsn}: Killed {submission.trigger}"
     else:
-        notification_title = f"{submission.rsn}: {f"{submission.quantity}x " if submission.quantity > 1 else ""}{submission.trigger} from {submission.source}"
+        notification_title = f"{submission.rsn}: {f'{submission.quantity}x ' if submission.quantity > 1 else ''}{submission.trigger} from {submission.source}"
 
     return NotificationResponse(
         threadId=event.thread_id,
@@ -901,7 +901,7 @@ def _handle_shop_action(event_id, team_id, save, data):
     # Deduct coins for the purchase
     save.coins -= purchased_item_price
     item = get_item_by_id(purchased_item_id) # Placeholder for actual item retrieval logic
-    logging.info(f"Team {team_id} purchased item {item.get("name")} for {purchased_item_price} coins. Remaining coins: {save.coins}")
+    logging.info(f"Team {team_id} purchased item {item.get('name')} for {purchased_item_price} coins. Remaining coins: {save.coins}")
 
     add_item_to_inventory(event_id, team_id, purchased_item_id)
 
@@ -1372,14 +1372,15 @@ def _complete_roll(event_id, team_id, save: SaveData) -> dict:
                             for trigger_id in triggers:
                                 trigger = EventTriggers.query.filter_by(id=trigger_id).first()
                                 if trigger.type == "DROP":
-                                    trigger_list.append(f"{trigger.trigger}{" from " + trigger.source if trigger.source else ""}")
+                                    trigger_list.append(f"{trigger.trigger}{' from ' + trigger.source if trigger.source else ''}")
                                 elif trigger.type == "KC":
                                     trigger_list.append(f"{trigger.trigger} KC")
                             triggers_message = " OR ".join(trigger_list)
                             
                             task_strings.append(f"{task.quantity}x {triggers_message}")
 
-                tile_info["description"] = f"Random challenge selected:\n{'\n'.join(task_strings)}"
+                newline = '\n'
+                tile_info["description"] = f"Random challenge selected:\n{newline.join(task_strings)}"
                 logging.info(f"Random challenge selected for tile {current_tile_obj.name}: {save.currentChallenges}")        
     
             for challenge_map in challenge_mappings:

@@ -2,306 +2,541 @@ from datetime import datetime, timezone
 from app import db
 from app import firestore_db
 from event_handlers.event_handler import EventSubmission, NotificationField, NotificationResponse, NotificationAuthor
-from models.models import Events, EventTeams, EventTeamMemberMappings, EventChallenges, EventTasks, EventTriggers, EventTriggerMappings, EventLog
-from models.bingo import BingoTileProgress, BingoTaskProgress, BingoTriggerProgress, BingoTiles, BingoChallenges, BingoTeam, BingoTile, BingoTask
-from helper.jsonb import update_jsonb_field
+from models.models import Users, EventLog
+from models.new_events import (
+    Event, Team, TeamMember, Action, Trigger, Tile, Task, Challenge,
+    TileStatus, TaskStatus, ChallengeStatus, ChallengeProof
+)
 
 import logging
 from sqlalchemy import func
 
-class BingoProgress:
-    is_task_completed: bool = False
-    progressed_task_tile_index: int = -1
-    progressed_task_id: str = ""
-    new_progress: BingoTileProgress | None = None
+def write_to_firestore(event_log: EventLog):
+    """Write event log to Firestore for backwards compatibility"""
+    try:
+        if firestore_db:
+            firestore_db.collection("drops").add(event_log.to_dict())
+            logging.info(f"Wrote drop to Firestore for event: {event_log.id}")
+    except Exception as e:
+        logging.exception(f"Failed to write drop to Firestore for event: {event_log.id} : {e}")
 
-def progress_tile(submission: EventSubmission, tile_progress: BingoTileProgress, tile: BingoTiles, team_data: BingoTeam) -> BingoProgress | None:
-    bingo_progress = BingoProgress()
-    bingo_progress.new_progress = tile_progress
 
-    # Grab the tasks (bingo challenges) for this tile
-    tasks: list[BingoChallenges] = BingoChallenges.query.filter_by(tile_id=tile.id).all()
-    if not tasks or len(tasks) == 0:
-        logging.error(f"No tasks found for tile {tile.id}.")
-        return None
+def process_submission_for_team(event: Event, submission: EventSubmission, team: Team, action: Action) -> list[int]:
+    """
+    Process a submission for a team and return list of tile indices where tasks were completed.
 
-    # Check each bingo challenge to see if the submission progresses it
-    for task in tasks:
-        bingo_task_id: str = task.id
-        for challenge_id in task.challenges:
-            # Get the event challenge
-            event_challenge: EventChallenges = EventChallenges.query.filter_by(id=challenge_id).first()
-            if event_challenge is None:
-                logging.error(f"Event challenge {challenge_id} not found for bingo task {bingo_task_id}.")
+    This function:
+    1. Finds all tiles for the event
+    2. For each tile, checks all tasks
+    3. For each task, checks all challenges
+    4. If a challenge matches the submission, updates progress
+    5. Returns list of tile indices where tasks were completed
+    """
+    completed_task_tile_indices = []
+
+    # Get all tiles for this event
+    tiles = Tile.query.filter_by(event_id=event.id).all()
+    if not tiles:
+        logging.error(f"No tiles found for event {event.id}")
+        return []
+
+    for tile in tiles:
+        # Get all tasks for this tile
+        tasks = Task.query.filter_by(tile_id=tile.id).all()
+        if not tasks:
+            continue
+
+        for task in tasks:
+            # Get all challenges for this task
+            challenges = Challenge.query.filter_by(task_id=task.id).all()
+            if not challenges:
                 continue
 
-            # Attempt to progress the challenge with the submission
-            # Loop through the tasks in the event challenge
-            for task_id in event_challenge.tasks:
-                event_task: EventTasks = EventTasks.query.filter_by(id=task_id).first()
+            for challenge in challenges:
+                # Skip parent challenges (no trigger)
+                if not challenge.trigger_id:
+                    continue
 
-                for task_trigger_id in event_task.triggers:
-                    # Check if the submission's trigger matches the event trigger
-                    event_trigger: EventTriggers = EventTriggers.query.filter_by(id=task_trigger_id).first()
+                # Get the trigger for this challenge
+                trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
+                if not trigger:
+                    continue
 
-                    # Normalize source for comparison
-                    trigger_source_norm = event_trigger.source.lower() if event_trigger.source else ""
-                    submission_source_norm = submission.source.lower() if submission.source else ""
-                    
-                    # If trigger source is empty, it can match any submission source (wildcard)
-                    # OR if trigger source is specified, it must match submission source
-                    source_matches = (not trigger_source_norm) or (trigger_source_norm == submission_source_norm)
+                # Check if submission matches this trigger
+                trigger_name_match = trigger.name.lower() == submission.trigger.lower()
 
-                    if event_trigger.trigger.lower() == submission.trigger.lower() and source_matches:
-                        # Progress the task
-                        # Find the corresponding task progress in the tile progress
-                        bingo_progress.progressed_task_id = bingo_task_id
-                        bingo_progress.progressed_task_tile_index = tile.index
-                        
-                        task_completed = bingo_progress.new_progress.add_task_progress(bingo_task_id, task.task_index, event_challenge, event_task, submission.trigger, submission.quantity, event_challenge.type)
-                        if task_completed:
-                            # Award points for completing the task
-                            
-                            team_data.points += 3
-                            team_data.board_state[tile.index] += 1
+                # Normalize source for comparison
+                trigger_source_norm = trigger.source.lower() if trigger.source else ""
+                submission_source_norm = submission.source.lower() if submission.source else ""
 
-                            bingo_progress.is_task_completed = True
-                        break  # No need to check other triggers for this event task
-    
-    return bingo_progress
+                # If trigger source is empty, it can match any submission source (wildcard)
+                # OR if trigger source is specified, it must match submission source
+                source_matches = (not trigger_source_norm) or (trigger_source_norm == submission_source_norm)
 
-# Process a submission for a team. Returns a list of completed tile indices
-def progress_team(event: Events, submission: EventSubmission, team_data: BingoTeam) -> list[int]:
-    # Grab all of the bingo tiles
-    tiles: list[BingoTiles] = BingoTiles.query.filter_by(event_id=event.id).all()
-    if not tiles or len(tiles) == 0:
-        logging.error(f"No bingo tiles found for event {event.id}.")
-        return []
+                if trigger_name_match and source_matches:
+                    # This submission matches this challenge! Update progress
+                    task_completed = update_challenge_progress(
+                        team, task, challenge, action, submission.quantity
+                    )
 
-    completed_task_tile_indices: set[int] = set()
+                    if task_completed and tile.index not in completed_task_tile_indices:
+                        completed_task_tile_indices.append(tile.index)
 
-    # Loop through each tile
-    for tile in tiles:
-        tile_index = tile.index
-        # Check if the team already has progress for this tile
-        tile_progress: BingoTileProgress | None = team_data.get_tile_progress(tile_index)
-        if tile_progress is None:
-            tile_progress = BingoTileProgress()
-            tile_progress.tile_id = tile_index
-            tile_progress.name = tile.name
-            tile_progress.progress = []
-            team_data.board_progress.append(tile_progress)
+    return completed_task_tile_indices
 
-        # Attempt to progress the tile
-        bingo_progress = progress_tile(submission, tile_progress, tile, team_data)
-        # print values of bingo_progress
-        if bingo_progress is None or bingo_progress.new_progress is None:
-            continue
-        
-        team_data.update_tile_progress(bingo_progress.new_progress)
-        # If any task was completed in this tile, add the tile index to the set
-        if bingo_progress.is_task_completed:
-            completed_task_tile_indices.add(tile_index)
 
-    return list(completed_task_tile_indices)
+def update_challenge_progress(team: Team, task: Task, challenge: Challenge, action: Action, quantity: int) -> bool:
+    """
+    Update progress for a challenge and return True if the task was completed as a result.
 
-def write_to_firestore(event_log: EventLog):
-    try:
-        firestore_db.collection("drops").add(event_log.to_dict())
-        logging.info(f"Wrote drop to Firestore for event: ${event_log.id}")
-    except Exception as e:
-        logging.exception(f"Failed to write drop to Firestore for event: ${event_log.id} : {e}")
+    Returns:
+        bool: True if this update caused the task to be completed, False otherwise
+    """
+    # Get or create challenge status
+    challenge_status = ChallengeStatus.query.filter_by(
+        team_id=team.id,
+        challenge_id=challenge.id
+    ).first()
 
-def check_row_for_bingo(tile_index: int, team_data: BingoTeam) -> bool:
-    # Count the number of completed tasks in the tile index
-    tile_progress = team_data.get_tile_progress(str(tile_index))
-    completed_tasks = tile_progress.get_completed_task_count() if tile_progress else 0
+    if not challenge_status:
+        challenge_status = ChallengeStatus(
+            team_id=team.id,
+            challenge_id=challenge.id,
+            quantity=0,
+            completed=False
+        )
+        db.session.add(challenge_status)
+        db.session.flush()  # Flush to get the ID for the proof
+
+    # Add proof (link to action)
+    proof = ChallengeProof(
+        challenge_status_id=challenge_status.id,
+        action_id=action.id
+    )
+    db.session.add(proof)
+
+    # Update quantity
+    challenge_status.quantity += quantity
+
+    # Check if challenge is now complete
+    # If quantity is NULL, challenge is repeatable and never completes
+    if challenge.quantity is not None and challenge_status.quantity >= challenge.quantity and not challenge_status.completed:
+        challenge_status.completed = True
+
+        # If this challenge has a parent, update parent progress
+        if challenge.parent_challenge_id:
+            return update_parent_challenge_progress(team, task, challenge)
+        else:
+            # Check if this completes the task
+            return check_and_update_task_completion(team, task)
+    elif challenge.quantity is None and challenge.parent_challenge_id:
+        # Repeatable challenge (quantity=NULL) with a parent
+        # Update parent on every submission since this child never "completes"
+        return update_parent_challenge_progress(team, task, challenge)
+
+    db.session.commit()
+    return False
+
+
+def update_parent_challenge_progress(team: Team, task: Task, child_challenge: Challenge) -> bool:
+    """
+    Update parent challenge progress when a child challenge is completed.
+
+    Returns:
+        bool: True if this caused the task to be completed, False otherwise
+    """
+    parent_challenge = Challenge.query.get(child_challenge.parent_challenge_id)
+    if not parent_challenge:
+        return False
+
+    # Sum the progress of all child challenges
+    child_challenges = Challenge.query.filter_by(
+        parent_challenge_id=parent_challenge.id
+    ).all()
+
+    total_children_value = 0
+    for child in child_challenges:
+        child_status = ChallengeStatus.query.filter_by(
+            team_id=team.id,
+            challenge_id=child.id
+        ).first()
+
+        if child_status:
+            if child.quantity is None:
+                # Repeatable child: multiply status quantity by child's value
+                # Each submission counts as (child.value) points towards parent
+                total_children_value += child_status.quantity * (child.value or 1)
+            elif child_status.completed:
+                # Completable child: add the child's value when completed
+                total_children_value += (child.value or 1)
+
+    # Get or create parent challenge status
+    parent_status = ChallengeStatus.query.filter_by(
+        team_id=team.id,
+        challenge_id=parent_challenge.id
+    ).first()
+
+    if not parent_status:
+        parent_status = ChallengeStatus(
+            team_id=team.id,
+            challenge_id=parent_challenge.id,
+            quantity=0,
+            completed=False
+        )
+        db.session.add(parent_status)
+        db.session.flush()
+
+    # Update parent quantity to reflect sum of children progress
+    parent_status.quantity = total_children_value
+
+    # Check if parent challenge is now complete
+    if total_children_value >= parent_challenge.quantity and not parent_status.completed:
+        parent_status.completed = True
+        db.session.commit()
+
+        # Check if parent has a parent (grandparent structure)
+        if parent_challenge.parent_challenge_id:
+            # Recursively update grandparent
+            return update_parent_challenge_progress(team, task, parent_challenge)
+        else:
+            # No grandparent, check if this completes the task
+            return check_and_update_task_completion(team, task)
+
+    db.session.commit()
+    return False
+
+
+def check_and_update_task_completion(team: Team, task: Task) -> bool:
+    """
+    Check if all required challenges for a task are complete and update task status.
+
+    Returns:
+        bool: True if the task was completed as a result of this check, False otherwise
+    """
+    # Get task status
+    task_status = TaskStatus.query.filter_by(
+        team_id=team.id,
+        task_id=task.id
+    ).first()
+
+    if not task_status:
+        task_status = TaskStatus(
+            team_id=team.id,
+            task_id=task.id,
+            completed=False
+        )
+        db.session.add(task_status)
+
+    # If already completed, return False
+    if task_status.completed:
+        return False
+
+    # Get all TOP-LEVEL challenges for this task (exclude children of parent challenges)
+    all_challenges = Challenge.query.filter_by(task_id=task.id).all()
+    challenges = [c for c in all_challenges if c.parent_challenge_id is None]
+
+    # Check if all challenges are complete
+    if task.require_all:
+        # AND logic: all top-level challenges must be complete
+        all_complete = True
+        for challenge in challenges:
+            challenge_status = ChallengeStatus.query.filter_by(
+                team_id=team.id,
+                challenge_id=challenge.id
+            ).first()
+            if not challenge_status or not challenge_status.completed:
+                all_complete = False
+                break
+
+        if all_complete:
+            task_status.completed = True
+            update_tile_status(team, task.tile_id)
+            db.session.commit()
+            return True
+    else:
+        # OR logic: any top-level challenge can complete the task
+        for challenge in challenges:
+            challenge_status = ChallengeStatus.query.filter_by(
+                team_id=team.id,
+                challenge_id=challenge.id
+            ).first()
+            if challenge_status and challenge_status.completed:
+                task_status.completed = True
+                update_tile_status(team, task.tile_id)
+                db.session.commit()
+                return True
+
+    db.session.commit()
+    return False
+
+
+def update_tile_status(team: Team, tile_id: str):
+    """Update tile status based on completed tasks"""
+    # Get or create tile status
+    tile_status = TileStatus.query.filter_by(
+        team_id=team.id,
+        tile_id=tile_id
+    ).first()
+
+    if not tile_status:
+        tile_status = TileStatus(
+            team_id=team.id,
+            tile_id=tile_id,
+            tasks_completed=0
+        )
+        db.session.add(tile_status)
+
+    # Count completed tasks for this tile
+    tasks = Task.query.filter_by(tile_id=tile_id).all()
+    completed_count = 0
+
+    for task in tasks:
+        task_status = TaskStatus.query.filter_by(
+            team_id=team.id,
+            task_id=task.id
+        ).first()
+        if task_status and task_status.completed:
+            completed_count += 1
+
+    # Update tile status (cap at 3)
+    tile_status.tasks_completed = min(completed_count, 3)
+
+    # Award 3 points per task completed
+    team.points += 3
+
+    db.session.commit()
+
+
+def check_row_for_bingo(tile_index: int, team: Team, event: Event) -> bool:
+    """Check if a row has achieved bingo (all tiles have same number of completed tasks)"""
+    # Get the tile at this index to determine completion level
+    tile = Tile.query.filter_by(event_id=event.id, index=tile_index).first()
+    if not tile:
+        return False
+
+    tile_status = TileStatus.query.filter_by(team_id=team.id, tile_id=tile.id).first()
+    if not tile_status:
+        return False
+
+    completed_tasks = tile_status.tasks_completed
+    if completed_tasks == 0:
+        return False
+
     # Find the minimum number of completed tasks in the row
     row = tile_index // 5
-    min_completed = 3  # Start with max possible (3 tasks per tile)
+    min_completed = completed_tasks
+
     for i in range(5):
-        tile_progress = team_data.get_tile_progress(str(row * 5 + i))
-        min_completed = min(min_completed, tile_progress.get_completed_task_count() if tile_progress else 0)
+        row_tile_index = row * 5 + i
+        row_tile = Tile.query.filter_by(event_id=event.id, index=row_tile_index).first()
+        if row_tile:
+            row_tile_status = TileStatus.query.filter_by(team_id=team.id, tile_id=row_tile.id).first()
+            tile_completed = row_tile_status.tasks_completed if row_tile_status else 0
+            min_completed = min(min_completed, tile_completed)
+
     return min_completed == completed_tasks
 
-def check_column_for_bingo(tile_index: int, team_data: BingoTeam) -> bool:
-    # Count the number of completed tasks in the tile index
-    tile_progress = team_data.get_tile_progress(str(tile_index))
-    completed_tasks = tile_progress.get_completed_task_count() if tile_progress else 0
+
+def check_column_for_bingo(tile_index: int, team: Team, event: Event) -> bool:
+    """Check if a column has achieved bingo (all tiles have same number of completed tasks)"""
+    # Get the tile at this index to determine completion level
+    tile = Tile.query.filter_by(event_id=event.id, index=tile_index).first()
+    if not tile:
+        return False
+
+    tile_status = TileStatus.query.filter_by(team_id=team.id, tile_id=tile.id).first()
+    if not tile_status:
+        return False
+
+    completed_tasks = tile_status.tasks_completed
+    if completed_tasks == 0:
+        return False
+
     # Find the minimum number of completed tasks in the column
     col = tile_index % 5
-    min_completed = 3  # Start with max possible (3 tasks per tile)
+    min_completed = completed_tasks
+
     for i in range(5):
-        tile_progress = team_data.get_tile_progress(str(i * 5 + col))
-        min_completed = min(min_completed, tile_progress.get_completed_task_count() if tile_progress else 0)
+        col_tile_index = i * 5 + col
+        col_tile = Tile.query.filter_by(event_id=event.id, index=col_tile_index).first()
+        if col_tile:
+            col_tile_status = TileStatus.query.filter_by(team_id=team.id, tile_id=col_tile.id).first()
+            tile_completed = col_tile_status.tasks_completed if col_tile_status else 0
+            min_completed = min(min_completed, tile_completed)
+
     return min_completed == completed_tasks
 
+
 def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
-    # Find most recent Bingo event
-    now: datetime = datetime.now(timezone.utc)
-    event: Events = Events.query.filter(
-        Events.start_time <= now, 
-        Events.end_time >= now, 
-        Events.type == "BINGO"
+    """Main handler for bingo event submissions"""
+    # Find active bingo event
+    now = datetime.now(timezone.utc)
+    event = Event.query.filter(
+        Event.start_date <= now,
+        Event.end_date >= now
     ).first()
-    if event is None:
+
+    if not event:
         logging.info("No active Bingo event found.")
         return []
-    
-    # Log the submission for the event
-    event_log_entry: EventLog = EventLog(
-        event_id=event.id,
-        rsn=submission.rsn,
-        discord_id=submission.id,
-        trigger=submission.trigger,
+
+    # Look up user by runescape_name or discord_id
+    user = None
+    if submission.rsn:
+        user = Users.query.filter(func.lower(Users.runescape_name) == submission.rsn.lower()).first()
+    if not user and submission.id:
+        user = Users.query.filter_by(discord_id=submission.id).first()
+
+    if not user:
+        logging.warning(f"User not found for submission: rsn={submission.rsn}, discord_id={submission.id}")
+        return []
+
+    # Create Action object (new event system)
+    action = Action(
+        player_id=user.id,
+        type=submission.type,
+        name=submission.trigger,
         source=submission.source,
         quantity=submission.quantity,
-        type=submission.type,
         value=submission.totalValue
     )
-    db.session.add(event_log_entry)
+    db.session.add(action)
     db.session.commit()
-    
-    write_to_firestore(event_log_entry)
 
-    # Query the database to see if the user is in the event
-    username = submission.rsn
-    discord_id = submission.id
-    player = EventTeamMemberMappings.query.join(EventTeams).filter(
-        EventTeams.event_id == event.id,
-        (
-            func.lower(EventTeamMemberMappings.username) == username.lower()
-        ) | (
-            func.lower(EventTeamMemberMappings.discord_id) == str(discord_id).lower()
+    # Write to Firestore (backwards compatibility)
+    if event:
+        temp_event_log = EventLog(
+            event_id=str(event.id),
+            rsn=submission.rsn,
+            discord_id=submission.id,
+            trigger=submission.trigger,
+            source=submission.source,
+            quantity=submission.quantity,
+            type=submission.type,
+            value=submission.totalValue
         )
+        write_to_firestore(temp_event_log)
+
+    # Check if user is a team member in this event
+    team_member = TeamMember.query.join(Team).filter(
+        Team.event_id == event.id,
+        TeamMember.user_id == user.id
     ).first()
 
-    if player is None:
+    if not team_member:
         logging.info(f"User {submission.rsn} (ID: {submission.id}) is not a participant in the Bingo event.")
         return []
-    
-    team: EventTeams = EventTeams.query.filter_by(id=player.team_id).first()
-    if team is None:
-        logging.error(f"Team with ID {player.team_id} not found for player {player.rsn} in Bingo event {event.id}.\nSubmission: {submission}")
-        return []
-    
-    team_data: BingoTeam = BingoTeam.from_dict(team.data)
 
-    # Progress the team based on the submission
-    completed_task_tile_indices = progress_team(event, submission, team_data)
-    
+    team = Team.query.filter_by(id=team_member.team_id).first()
+    if not team:
+        logging.error(f"Team with ID {team_member.team_id} not found for user {user.id} in Bingo event {event.id}.")
+        return []
+
+    # Process the submission for this team
+    completed_task_tile_indices = process_submission_for_team(event, submission, team, action)
+
     # If no tasks were completed, return early
-    if not completed_task_tile_indices or len(completed_task_tile_indices) == 0:
-        # save the team data back to the database
-        team.data = team_data.to_dict()
-        db.session.commit()
+    if not completed_task_tile_indices:
         return []
 
+    # Check for bingos (completed rows/columns)
     bingo_count = 0
-    # If tasks were completed, check for bonus points for completing rows/columns
     for index in completed_task_tile_indices:
-        if check_row_for_bingo(index, team_data):
+        if check_row_for_bingo(index, team, event):
             bingo_count += 1
-        if check_column_for_bingo(index, team_data):
+        if check_column_for_bingo(index, team, event):
             bingo_count += 1
 
-    # Award points for bingos
-    team_data.points += bingo_count * 15
+    # Award bonus points for bingos
+    if bingo_count > 0:
+        team.points += bingo_count * 15
+        db.session.commit()
 
-    # save the team data back to the database
-    team.data = team_data.to_dict()
-    db.session.commit()
-
-    # Construct notification response based on completed tasks and bingos
+    # Construct notification response
     if bingo_count < 1:
         # Get the first tile that was completed
-        first_completed_tile = completed_task_tile_indices[0] if completed_task_tile_indices else 0
-        tile: BingoTiles = BingoTiles.query.filter_by(event_id=event.id, index=first_completed_tile).first()
-        if tile is None:
-            logging.error(f"Tile with index {first_completed_tile} not found for Bingo event {event.id}.")
+        first_completed_tile_index = completed_task_tile_indices[0]
+        tile = Tile.query.filter_by(event_id=event.id, index=first_completed_tile_index).first()
+        if not tile:
+            logging.error(f"Tile with index {first_completed_tile_index} not found for Bingo event {event.id}.")
             return []
-        response: NotificationResponse = NotificationResponse(
+
+        response = NotificationResponse(
             threadId=event.thread_id,
             title=f"{tile.name} Task Completed!",
             color=0xFFD700,  # Gold color
-            description=f"The **{team_data.name}** have completed a task!",
+            description=f"The **{team.name}** have completed a task!",
             author=NotificationAuthor(
                 name=team.name,
-                icon_url=team.image
+                icon_url=team.image_url
             ),
             fields=[
                 NotificationField(
                     name="Total Points",
-                    value=str(team_data.points),
+                    value=str(team.points),
                     inline=True
                 )
             ]
         )
         return [response]
+
     elif bingo_count == 1:
-        response: NotificationResponse = NotificationResponse(
+        response = NotificationResponse(
             threadId=event.thread_id,
             title="Bingo!",
             color=0x00FF00,  # Green color
-            description=f"The **{team_data.name}** have completed a row or column and scored a Bingo!",
+            description=f"The **{team.name}** have completed a row or column and scored a Bingo!",
             author=NotificationAuthor(
                 name=team.name,
-                icon_url=team.image
+                icon_url=team.image_url
             ),
             fields=[
                 NotificationField(
                     name="Total Points",
-                    value=str(team_data.points),
+                    value=str(team.points),
                     inline=True
                 )
             ]
         )
         return [response]
+
     elif bingo_count == 2:
-        response: NotificationResponse = NotificationResponse(
+        response = NotificationResponse(
             threadId=event.thread_id,
             title="Multiple Bingos!",
             color=0xFF4500,  # OrangeRed color
-            description=f"The **{team_data.name}** have completed a double bingo!",
+            description=f"The **{team.name}** have completed a double bingo!",
             author=NotificationAuthor(
                 name=team.name,
-                icon_url=team.image
+                icon_url=team.image_url
             ),
             fields=[
                 NotificationField(
                     name="Total Points",
-                    value=str(team_data.points),
+                    value=str(team.points),
                     inline=True
                 )
             ]
         )
         return [response]
-    else: # This should technically not be possible and we'll have a funny message for it
-        response: NotificationResponse = NotificationResponse(
+
+    else:
+        # This should technically not be possible
+        response = NotificationResponse(
             threadId=event.thread_id,
             title="Bingo Anomaly Detected!",
             color=0xFF0000,  # Red color
             description=f"The **{team.name}** have triggered an unexpected bingo count of {bingo_count}. Please contact an admin.",
             author=NotificationAuthor(
                 name=team.name,
-                icon_url=team.image
+                icon_url=team.image_url
             ),
             fields=[
                 NotificationField(
                     name="Total Points",
-                    value=str(team_data.points),
+                    value=str(team.points),
                     inline=True
                 )
             ]
         )
-
-    return [NotificationResponse(
-        threadId=event.thread_id,
-        description="An unexpected error occurred while processing the bingo. Please contact an admin.",
-        author=NotificationAuthor(
-            name="Bingo Event",
-            icon_url="https://i.imgur.com/3ZQ3Z3Q.png"
-        ),
-        title="This message should never be seen. @funzip"
-    )]
-    
+        return [response]

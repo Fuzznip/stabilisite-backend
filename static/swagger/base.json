@@ -38,6 +38,38 @@
     {
       "name": "ranks",
       "description": "Rank management operations"
+    },
+    {
+      "name": "V2 Events",
+      "description": "New event system - Event management"
+    },
+    {
+      "name": "V2 Teams",
+      "description": "New event system - Team management"
+    },
+    {
+      "name": "V2 Actions",
+      "description": "New event system - Player action submission and processing"
+    },
+    {
+      "name": "V2 Tiles",
+      "description": "New event system - Bingo tile management"
+    },
+    {
+      "name": "V2 Tasks",
+      "description": "New event system - Task (Bronze/Silver/Gold) management"
+    },
+    {
+      "name": "V2 Challenges",
+      "description": "New event system - Challenge management"
+    },
+    {
+      "name": "V2 Triggers",
+      "description": "New event system - Action trigger management"
+    },
+    {
+      "name": "V2 Status",
+      "description": "New event system - Board state and leaderboard"
     }
   ],
   "components": {
