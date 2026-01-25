@@ -1,6 +1,6 @@
 from app import app
 from flask import request, jsonify
-from models.new_events import Tile, Task, Challenge, Trigger, Team, TileStatus, TaskStatus, ChallengeStatus
+from models.new_events import Tile, Task, Challenge, Trigger, Team, TileStatus, TaskStatus, ChallengeStatus, ChallengeProof
 from services.crud_service import CRUDService
 from helper.helpers import ModelEncoder
 import json
@@ -208,6 +208,13 @@ def get_tile_progress(tile_id):
                     challenge_status_dict['status_id'] = str(challenge_status.id)
                     challenge_status_dict['created_at'] = challenge_status.created_at.isoformat()
                     challenge_status_dict['updated_at'] = challenge_status.updated_at.isoformat()
+
+                    # Include proofs with img_path
+                    proofs = ChallengeProof.query.filter_by(challenge_status_id=challenge_status.id).all()
+                    challenge_status_dict['proofs'] = [
+                        {'id': str(proof.id), 'img_path': proof.img_path, 'created_at': proof.created_at.isoformat()}
+                        for proof in proofs
+                    ]
 
                 challenge_statuses.append(challenge_status_dict)
 
