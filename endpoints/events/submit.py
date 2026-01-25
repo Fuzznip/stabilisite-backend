@@ -40,6 +40,7 @@ def submit_event():
         source=data.get("source"),
         quantity=data.get("quantity"),
         totalValue=data.get("totalValue"),
+        imgPath=data.get("imgPath"),
         type=data.get("type")
     )
 

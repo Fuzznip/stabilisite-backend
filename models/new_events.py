@@ -276,6 +276,7 @@ class ChallengeProof(db.Model, Serializer):
     challenge_status_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenge_statuses.id', ondelete='CASCADE'), nullable=False)
     action_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.actions.id', ondelete='CASCADE'), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    img_path = db.Column(db.String(512))
 
     # Relationships
     challenge_status = db.relationship('ChallengeStatus', back_populates='proofs')

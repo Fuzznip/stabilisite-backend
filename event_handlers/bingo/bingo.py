@@ -11,11 +11,14 @@ from models.new_events import (
 import logging
 from sqlalchemy import func
 
-def write_to_firestore(event_log: EventLog):
+def write_to_firestore(event_log: EventLog, img_path: str | None):
     """Write event log to Firestore for backwards compatibility"""
+    drop = event_log.to_dict()
+    if img_path:
+        drop["img_path"] = img_path
     try:
         if firestore_db:
-            firestore_db.collection("drops").add(event_log.to_dict())
+            firestore_db.collection("drops").add(drop)
             logging.info(f"Wrote drop to Firestore for event: {event_log.id}")
     except Exception as e:
         logging.exception(f"Failed to write drop to Firestore for event: {event_log.id} : {e}")
@@ -76,7 +79,7 @@ def process_submission_for_team(event: Event, submission: EventSubmission, team:
                 if trigger_name_match and source_matches:
                     # This submission matches this challenge! Update progress
                     task_completed = update_challenge_progress(
-                        team, task, challenge, action, submission.quantity
+                        team, task, challenge, action, submission
                     )
 
                     if task_completed and tile.index not in completed_task_tile_indices:
@@ -85,7 +88,7 @@ def process_submission_for_team(event: Event, submission: EventSubmission, team:
     return completed_task_tile_indices
 
 
-def update_challenge_progress(team: Team, task: Task, challenge: Challenge, action: Action, quantity: int) -> bool:
+def update_challenge_progress(team: Team, task: Task, challenge: Challenge, action: Action, submission: EventSubmission) -> bool:
     """
     Update progress for a challenge and return True if the task was completed as a result.
 
@@ -111,12 +114,13 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
     # Add proof (link to action)
     proof = ChallengeProof(
         challenge_status_id=challenge_status.id,
-        action_id=action.id
+        action_id=action.id,
+        img_path=submission.imgPath
     )
     db.session.add(proof)
 
     # Update quantity
-    challenge_status.quantity += quantity
+    challenge_status.quantity += submission.quantity
 
     # Check if challenge is now complete
     # If quantity is NULL, challenge is repeatable and never completes
@@ -415,7 +419,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
             type=submission.type,
             value=submission.totalValue
         )
-        write_to_firestore(temp_event_log)
+        write_to_firestore(temp_event_log, submission.imgPath)
 
     # Check if user is a team member in this event
     team_member = TeamMember.query.join(Team).filter(
