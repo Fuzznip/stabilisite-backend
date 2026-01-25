@@ -1,7 +1,7 @@
 """add value to challenges
 
-Revision ID: c8d4f2a7b3e9
-Revises: b72f3e9a8c41
+Revision ID: f6a7b8c9d0e1
+Revises: e5f6a7b8c9d0
 Create Date: 2026-01-11
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'c8d4f2a7b3e9'
-down_revision = 'b72f3e9a8c41'
+revision = 'f6a7b8c9d0e1'
+down_revision = 'e5f6a7b8c9d0'
 branch_labels = None
 depends_on = None
 

@@ -1,7 +1,7 @@
 """Add value field to Action model
 
-Revision ID: ae00dc5bd504
-Revises: 003_trigger_nullable
+Revision ID: d4e5f6a7b8c9
+Revises: c3d4e5f6a7b8
 Create Date: 2026-01-04 21:04:34.784698
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = 'ae00dc5bd504'
-down_revision = '003_trigger_nullable'
+revision = 'd4e5f6a7b8c9'
+down_revision = 'c3d4e5f6a7b8'
 branch_labels = None
 depends_on = None
 

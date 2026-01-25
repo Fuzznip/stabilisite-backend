@@ -1,7 +1,7 @@
 """remove triggers type check constraint
 
-Revision ID: d9e5f3b8c4a2
-Revises: c8d4f2a7b3e1
+Revision ID: b8c9d0e1f2a3
+Revises: a7b8c9d0e1f2
 Create Date: 2026-01-24
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = 'd9e5f3b8c4a2'
-down_revision = 'c8d4f2a7b3e1'
+revision = 'b8c9d0e1f2a3'
+down_revision = 'a7b8c9d0e1f2'
 branch_labels = None
 depends_on = None
 

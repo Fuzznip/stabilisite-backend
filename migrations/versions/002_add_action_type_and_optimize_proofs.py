@@ -1,7 +1,7 @@
 """Add action type column and optimize proof creation
 
-Revision ID: 002_action_type
-Revises: 001_new_events
+Revision ID: b2c3d4e5f6a7
+Revises: a1b2c3d4e5f6
 Create Date: 2026-01-03 21:00:00.000000
 
 Changes:
@@ -14,8 +14,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '002_action_type'
-down_revision = '001_new_events'
+revision = 'b2c3d4e5f6a7'
+down_revision = 'a1b2c3d4e5f6'
 branch_labels = None
 depends_on = None
 

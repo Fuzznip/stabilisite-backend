@@ -1,8 +1,8 @@
-"""add value to challenges
+"""make quantity nullable
 
-Revision ID: c8d4f2a7b3e9
-Revises: b72f3e9a8c41
-Create Date: 2026-01-11
+Revision ID: a7b8c9d0e1f2
+Revises: f6a7b8c9d0e1
+Create Date: 2026-01-12
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'c8d4f2a7b3e1'
-down_revision = 'c8d4f2a7b3e9'
+revision = 'a7b8c9d0e1f2'
+down_revision = 'f6a7b8c9d0e1'
 branch_labels = None
 depends_on = None
 

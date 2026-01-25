@@ -1,6 +1,6 @@
 """Create new event system schema
 
-Revision ID: 001_new_events
+Revision ID: a1b2c3d4e5f6
 Revises:
 Create Date: 2024-12-19 21:00:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '001_new_events'
+revision = 'a1b2c3d4e5f6'
 down_revision = None
 branch_labels = None
 depends_on = None
