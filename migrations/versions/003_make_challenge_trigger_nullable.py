@@ -1,7 +1,7 @@
 """Make challenge trigger_id nullable for parent challenges
 
-Revision ID: 003_trigger_nullable
-Revises: 002_action_type
+Revision ID: c3d4e5f6a7b8
+Revises: b2c3d4e5f6a7
 Create Date: 2026-01-03 22:00:00.000000
 
 This allows parent challenges to exist without a trigger, enabling
@@ -17,8 +17,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '003_trigger_nullable'
-down_revision = '002_action_type'
+revision = 'c3d4e5f6a7b8'
+down_revision = 'b2c3d4e5f6a7'
 branch_labels = None
 depends_on = None
 
