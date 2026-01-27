@@ -115,7 +115,7 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
     proof = ChallengeProof(
         challenge_status_id=challenge_status.id,
         action_id=action.id,
-        img_path=submission.imgPath
+        img_path=submission.img_path
     )
     db.session.add(proof)
 
@@ -419,7 +419,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
             type=submission.type,
             value=submission.totalValue
         )
-        write_to_firestore(temp_event_log, submission.imgPath)
+        write_to_firestore(temp_event_log, submission.img_path)
 
     # Check if user is a team member in this event
     team_member = TeamMember.query.join(Team).filter(
