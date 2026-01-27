@@ -164,6 +164,10 @@ class ChallengeEvaluator:
             logging.error(f"Cannot update quantity for parent challenge {challenge_id}")
             return None
 
+        # Determine effective quantity to add
+        # If count_per_action is set, use that value instead of the action's quantity
+        effective_quantity = challenge.count_per_action if challenge.count_per_action is not None else quantity_to_add
+
         # Get or create status
         status = ChallengeStatus.query.filter_by(
             challenge_id=challenge_id,
@@ -174,7 +178,7 @@ class ChallengeEvaluator:
             status = ChallengeStatus(
                 challenge_id=challenge_id,
                 team_id=team_id,
-                quantity=quantity_to_add,
+                quantity=effective_quantity,
                 completed=False
             )
             db.session.add(status)
@@ -190,7 +194,7 @@ class ChallengeEvaluator:
                         updated_at = NOW()
                     WHERE id = :status_id
                 """),
-                {"qty": quantity_to_add, "status_id": str(status.id)}
+                {"qty": effective_quantity, "status_id": str(status.id)}
             )
             db.session.flush()
             # Refresh to get updated quantity
