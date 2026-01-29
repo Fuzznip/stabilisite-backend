@@ -9,7 +9,7 @@ from models.new_events import (
 )
 
 import logging
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 def write_to_firestore(event_log: EventLog, img_path: str | None):
     """Write event log to Firestore for backwards compatibility"""
@@ -384,10 +384,16 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         logging.info("No active Bingo event found.")
         return []
 
-    # Look up user by runescape_name or discord_id
+    # Look up user by runescape_name, alt_names, or discord_id
     user = None
     if submission.rsn:
+        # First try exact match on runescape_name
         user = Users.query.filter(func.lower(Users.runescape_name) == submission.rsn.lower()).first()
+        # If not found, check if the RSN is in any user's alt_names (case-insensitive)
+        if not user:
+            user = Users.query.filter(
+                text("lower(:rsn) = ANY(SELECT lower(x) FROM unnest(alt_names) x)")
+            ).params(rsn=submission.rsn).first()
     if not user and submission.id:
         user = Users.query.filter_by(discord_id=submission.id).first()
 
