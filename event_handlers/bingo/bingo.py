@@ -408,7 +408,8 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         name=submission.trigger,
         source=submission.source,
         quantity=submission.quantity,
-        value=submission.totalValue
+        value=submission.totalValue,
+        date=datetime.now(timezone.utc)
     )
     db.session.add(action)
     db.session.commit()

@@ -18,8 +18,8 @@ class Event(db.Model, Serializer):
     start_date = db.Column(db.DateTime(timezone=True), nullable=False)
     end_date = db.Column(db.DateTime(timezone=True), nullable=False)
     thread_id = db.Column(db.String(255))  # Discord thread ID for notifications
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     teams = db.relationship('Team', back_populates='event', cascade='all, delete-orphan')
@@ -45,8 +45,8 @@ class Team(db.Model, Serializer):
     name = db.Column(db.String(255), nullable=False)
     image_url = db.Column(db.String(512))  # Team image/icon URL
     points = db.Column(db.Integer, nullable=False, default=0)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     event = db.relationship('Event', back_populates='teams')
@@ -69,8 +69,8 @@ class TeamMember(db.Model, Serializer):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='CASCADE'), nullable=False)
     user_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     team = db.relationship('Team', back_populates='members')
@@ -91,8 +91,8 @@ class Action(db.Model, Serializer):
     source = db.Column(db.String(255))
     quantity = db.Column(db.Integer, nullable=False, default=1)
     value = db.Column(db.Integer)  # Item value or other numeric value associated with the action
-    date = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    date = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     challenge_proofs = db.relationship('ChallengeProof', back_populates='action', cascade='all, delete-orphan')
@@ -114,8 +114,8 @@ class Trigger(db.Model, Serializer):
     type = db.Column(db.String(50), nullable=False, default='DROP')
     img_path = db.Column(db.String(512))
     wiki_id = db.Column(db.Integer)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     challenges = db.relationship('Challenge', back_populates='trigger')
@@ -136,8 +136,8 @@ class Tile(db.Model, Serializer):
     name = db.Column(db.String(255), nullable=False)
     img_src = db.Column(db.String(512))
     index = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     event = db.relationship('Event', back_populates='tiles')
@@ -156,8 +156,8 @@ class Task(db.Model, Serializer):
     tile_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.tiles.id', ondelete='CASCADE'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     require_all = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     tile = db.relationship('Tile', back_populates='tasks')
@@ -180,8 +180,8 @@ class Challenge(db.Model, Serializer):
     quantity = db.Column(db.Integer, nullable=True, default=1)
     value = db.Column(db.Integer, nullable=False, default=1)
     count_per_action = db.Column(db.Integer, nullable=True, default=None)  # If set, each action counts as this value regardless of action quantity
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     task = db.relationship('Task', back_populates='challenges')
@@ -204,8 +204,8 @@ class TileStatus(db.Model, Serializer):
     team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='CASCADE'), nullable=False)
     tile_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.tiles.id', ondelete='CASCADE'), nullable=False)
     tasks_completed = db.Column(db.Integer, nullable=False, default=0)  # 0=none, 1=bronze, 2=silver, 3=gold
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     team = db.relationship('Team', back_populates='tile_statuses')
@@ -231,8 +231,8 @@ class TaskStatus(db.Model, Serializer):
     team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='CASCADE'), nullable=False)
     task_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.tasks.id', ondelete='CASCADE'), nullable=False)
     completed = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     team = db.relationship('Team', back_populates='task_statuses')
@@ -254,8 +254,8 @@ class ChallengeStatus(db.Model, Serializer):
     challenge_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenges.id', ondelete='CASCADE'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=0)
     completed = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
     team = db.relationship('Team', back_populates='challenge_statuses')
@@ -276,7 +276,7 @@ class ChallengeProof(db.Model, Serializer):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     challenge_status_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenge_statuses.id', ondelete='CASCADE'), nullable=False)
     action_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.actions.id', ondelete='CASCADE'), nullable=False)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     img_path = db.Column(db.String(512))
 
     # Relationships
