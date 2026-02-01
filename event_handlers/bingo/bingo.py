@@ -16,7 +16,7 @@ def write_to_firestore(submission: EventSubmission, event: Event, action: Action
     drop = {
         "id": str(action.id),
         "event_id": str(event.id),
-        "submitted_rsn": submission.rsn,  # Original submitted RSN (may be alt name)
+        "rsn": submission.rsn,  # Original submitted RSN (may be alt name)
         "discord_id": submission.id,
         "trigger": submission.trigger,
         "source": submission.source,
