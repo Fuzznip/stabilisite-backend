@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from app import db
 from app import firestore_db
 from event_handlers.event_handler import EventSubmission, NotificationField, NotificationResponse, NotificationAuthor
-from models.models import Users, EventLog
+from models.models import Users
 from models.new_events import (
     Event, Team, TeamMember, Action, Trigger, Tile, Task, Challenge,
     TileStatus, TaskStatus, ChallengeStatus, ChallengeProof
@@ -11,17 +11,34 @@ from models.new_events import (
 import logging
 from sqlalchemy import func, text
 
-def write_to_firestore(event_log: EventLog, img_path: str | None):
-    """Write event log to Firestore for backwards compatibility"""
-    drop = event_log.to_dict()
-    if img_path:
-        drop["img_path"] = img_path
+def write_to_firestore(submission: EventSubmission, event: Event, action: Action, user: Users, team: Team | None = None):
+    """Write submission to Firestore for backwards compatibility"""
+    drop = {
+        "id": str(action.id),
+        "event_id": str(event.id),
+        "submitted_rsn": submission.rsn,  # Original submitted RSN (may be alt name)
+        "discord_id": submission.id,
+        "trigger": submission.trigger,
+        "source": submission.source,
+        "quantity": submission.quantity,
+        "type": submission.type,
+        "value": submission.totalValue,
+        "timestamp": action.date.isoformat() if action.date else None,
+        "img_path": submission.img_path,
+        # Resolved user info (the actual user, which may differ from submitted RSN if alt was used)
+        "player_id": str(user.id),
+        "player_rsn": user.runescape_name,
+    }
+    # Add team info if user is on a team
+    if team:
+        drop["team_id"] = str(team.id)
+        drop["team_name"] = team.name
     try:
         if firestore_db:
             firestore_db.collection("drops").add(drop)
-            logging.info(f"Wrote drop to Firestore for event: {event_log.id}")
+            logging.info(f"Wrote drop to Firestore for action: {action.id}")
     except Exception as e:
-        logging.exception(f"Failed to write drop to Firestore for event: {event_log.id} : {e}")
+        logging.exception(f"Failed to write drop to Firestore for action: {action.id} : {e}")
 
 
 def process_submission_for_team(event: Event, submission: EventSubmission, team: Team, action: Action) -> list[int]:
@@ -401,6 +418,16 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         logging.warning(f"User not found for submission: rsn={submission.rsn}, discord_id={submission.id}")
         return []
 
+    # Check if user is a team member in this event (do this early so we can include in Firestore)
+    team = None
+    team_member = TeamMember.query.join(Team).filter(
+        Team.event_id == event.id,
+        TeamMember.user_id == user.id
+    ).first()
+
+    if team_member:
+        team = Team.query.filter_by(id=team_member.team_id).first()
+
     # Create Action object (new event system)
     action = Action(
         player_id=user.id,
@@ -414,33 +441,12 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     db.session.add(action)
     db.session.commit()
 
-    # Write to Firestore (backwards compatibility)
-    if event:
-        temp_event_log = EventLog(
-            event_id=str(event.id),
-            rsn=submission.rsn,
-            discord_id=submission.id,
-            trigger=submission.trigger,
-            source=submission.source,
-            quantity=submission.quantity,
-            type=submission.type,
-            value=submission.totalValue
-        )
-        write_to_firestore(temp_event_log, submission.img_path)
+    # Write to Firestore (backwards compatibility) - includes user and team info
+    write_to_firestore(submission, event, action, user, team)
 
-    # Check if user is a team member in this event
-    team_member = TeamMember.query.join(Team).filter(
-        Team.event_id == event.id,
-        TeamMember.user_id == user.id
-    ).first()
-
-    if not team_member:
+    # If user is not on a team, we've already logged to Firestore, just return
+    if not team_member or not team:
         logging.info(f"User {submission.rsn} (ID: {submission.id}) is not a participant in the Bingo event.")
-        return []
-
-    team = Team.query.filter_by(id=team_member.team_id).first()
-    if not team:
-        logging.error(f"Team with ID {team_member.team_id} not found for user {user.id} in Bingo event {event.id}.")
         return []
 
     # Process the submission for this team
