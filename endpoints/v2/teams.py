@@ -160,20 +160,81 @@ def remove_team_member(team_id, user_id):
 
 @app.route("/v2/teams/<team_id>/progress", methods=['GET'])
 def get_team_progress(team_id):
-    """Get complete progress for a team across all tiles"""
+    """
+    Get complete progress for a team across all tiles.
+
+    Optimized to use batch queries instead of N+1 queries.
+    """
     team = Team.query.filter_by(id=team_id).first()
     if not team:
         return jsonify({'error': 'Team not found'}), 404
 
+    # =========================================
+    # BATCH FETCH ALL DATA UPFRONT
+    # =========================================
+
     # Get all tiles for this event
     tiles = Tile.query.filter_by(event_id=team.event_id).order_by(Tile.index).all()
+    tile_ids = [tile.id for tile in tiles]
+
+    # Get all tasks for these tiles in one query
+    all_tasks = Task.query.filter(Task.tile_id.in_(tile_ids)).all() if tile_ids else []
+    task_ids = [task.id for task in all_tasks]
+
+    # Get all challenges for these tasks in one query
+    all_challenges = Challenge.query.filter(Challenge.task_id.in_(task_ids)).all() if task_ids else []
+    challenge_ids = [c.id for c in all_challenges]
+
+    # Get all triggers for challenges in one query
+    trigger_ids = [c.trigger_id for c in all_challenges if c.trigger_id]
+    all_triggers = Trigger.query.filter(Trigger.id.in_(trigger_ids)).all() if trigger_ids else []
+    triggers_by_id = {t.id: t for t in all_triggers}
+
+    # Get all tile statuses for this team in one query
+    all_tile_statuses = TileStatus.query.filter(
+        TileStatus.team_id == team_id,
+        TileStatus.tile_id.in_(tile_ids)
+    ).all() if tile_ids else []
+    tile_statuses_by_tile = {ts.tile_id: ts for ts in all_tile_statuses}
+
+    # Get all task statuses for this team in one query
+    all_task_statuses = TaskStatus.query.filter(
+        TaskStatus.team_id == team_id,
+        TaskStatus.task_id.in_(task_ids)
+    ).all() if task_ids else []
+    task_statuses_by_task = {ts.task_id: ts for ts in all_task_statuses}
+
+    # Get all challenge statuses for this team in one query
+    all_challenge_statuses = ChallengeStatus.query.filter(
+        ChallengeStatus.team_id == team_id,
+        ChallengeStatus.challenge_id.in_(challenge_ids)
+    ).all() if challenge_ids else []
+    challenge_statuses_by_challenge = {cs.challenge_id: cs for cs in all_challenge_statuses}
+
+    # Group tasks by tile for easier lookup
+    tasks_by_tile = {}
+    for task in all_tasks:
+        if task.tile_id not in tasks_by_tile:
+            tasks_by_tile[task.tile_id] = []
+        tasks_by_tile[task.tile_id].append(task)
+
+    # Group challenges by task for easier lookup
+    challenges_by_task = {}
+    for challenge in all_challenges:
+        if challenge.task_id not in challenges_by_task:
+            challenges_by_task[challenge.task_id] = []
+        challenges_by_task[challenge.task_id].append(challenge)
+
+    # =========================================
+    # BUILD RESPONSE FROM IN-MEMORY DATA
+    # =========================================
 
     progress_data = []
     for tile in tiles:
         tile_dict = tile.serialize()
 
-        # Get tile status
-        tile_status = TileStatus.query.filter_by(team_id=team_id, tile_id=tile.id).first()
+        # Get tile status from lookup
+        tile_status = tile_statuses_by_tile.get(tile.id)
         if tile_status:
             tile_dict['status'] = tile_status.serialize()
             tile_dict['status']['medal_level'] = tile_status.get_medal_level()
@@ -183,35 +244,29 @@ def get_team_progress(team_id):
                 'medal_level': 'none'
             }
 
-        # Get tasks for this tile
-        tasks = Task.query.filter_by(tile_id=tile.id).all()
+        # Get tasks from lookup
         tasks_data = []
-
-        for task in tasks:
+        for task in tasks_by_tile.get(tile.id, []):
             task_dict = task.serialize()
 
-            # Get task status
-            task_status = TaskStatus.query.filter_by(team_id=team_id, task_id=task.id).first()
+            # Get task status from lookup
+            task_status = task_statuses_by_task.get(task.id)
             if task_status:
                 task_dict['status'] = task_status.serialize()
             else:
                 task_dict['status'] = {'completed': False}
 
-            # Get challenges for this task
-            challenges = Challenge.query.filter_by(task_id=task.id).all()
+            # Get challenges from lookup
             challenges_data = []
-
-            for challenge in challenges:
+            for challenge in challenges_by_task.get(task.id, []):
                 challenge_dict = challenge.serialize()
 
-                # Get trigger (only if challenge has a trigger)
-                if challenge.trigger_id:
-                    trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
-                    if trigger:
-                        challenge_dict['trigger'] = trigger.serialize()
+                # Get trigger from lookup
+                if challenge.trigger_id and challenge.trigger_id in triggers_by_id:
+                    challenge_dict['trigger'] = triggers_by_id[challenge.trigger_id].serialize()
 
-                # Get challenge status
-                challenge_status = ChallengeStatus.query.filter_by(team_id=team_id, challenge_id=challenge.id).first()
+                # Get challenge status from lookup
+                challenge_status = challenge_statuses_by_challenge.get(challenge.id)
                 if challenge_status:
                     challenge_dict['status'] = challenge_status.serialize()
                 else:
