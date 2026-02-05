@@ -136,8 +136,9 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
     )
     db.session.add(proof)
 
-    # Update quantity
-    challenge_status.quantity += submission.quantity
+    # Update quantity - respect count_per_action if set
+    effective_quantity = challenge.count_per_action if challenge.count_per_action is not None else submission.quantity
+    challenge_status.quantity += effective_quantity
 
     # Check if challenge is now complete
     # If quantity is NULL, challenge is repeatable and never completes
