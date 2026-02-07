@@ -40,7 +40,7 @@ def get_item_whitelist():
             elif trigger.type == "KC":
                 killCountTriggerSet.add(trigger.trigger)
             elif trigger.type == "CHAT":
-                messageFilterSet.add(trigger.name)
+                messageFilterSet.add(trigger.source)
             else:
                 logging.warning(f"Unknown trigger type: {trigger.type}")
 
@@ -62,7 +62,7 @@ def get_item_whitelist():
             elif trigger.type == "KC":
                 killCountTriggerSet.add(trigger.name)
             elif trigger.type == "CHAT":
-                messageFilterSet.add(trigger.name)
+               messageFilterSet.add(f"{trigger.name}:{trigger.source}")
             else:
                 logging.warning(f"Unknown trigger type (new schema): {trigger.type}")
 
