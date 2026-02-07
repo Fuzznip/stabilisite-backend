@@ -91,7 +91,8 @@ def process_submission_for_team(event: Event, submission: EventSubmission, team:
 
                 # If trigger source is empty, it can match any submission source (wildcard)
                 # OR if trigger source is specified, it must match submission source
-                source_matches = (not trigger_source_norm) or (trigger_source_norm == submission_source_norm)
+                # For CHAT triggers, ignore source matching entirely (match on name only)
+                source_matches = (trigger.type == "CHAT") or (not trigger_source_norm) or (trigger_source_norm == submission_source_norm)
 
                 if trigger_name_match and source_matches:
                     # This submission matches this challenge! Update progress
