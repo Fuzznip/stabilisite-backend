@@ -2,6 +2,7 @@ from app import app, db
 from helper.helpers import ModelEncoder
 from helper.set_discord_role import add_discord_role, remove_discord_roles
 from flask import request
+from sqlalchemy import or_
 from models.models import Users, Splits, ClanPointsLog
 from models.models import ClanApplications, RankApplications, TierApplications, DiaryApplications, TimeSplitApplications
 from models.models import EventTeamMemberMappings, EventTeams
@@ -49,15 +50,14 @@ def create_user():
 
 @app.route("/users/<id>", methods=['GET'])
 def get_user_profile(id):
-    user = Users.query.filter_by(discord_id=id).first()
+    user = Users.query.filter(
+        Users.is_active == True,
+        or_(Users.discord_id == id, Users.runescape_name.ilike(id))
+    ).first()
+
     if user is None:
-        user = Users.query.filter(Users.runescape_name.ilike(id)).first()
-        if user is None:
-            return "Could not find User", 404
-    
-    if not user.is_active:
         return "Could not find User", 404
-    
+
     return json.dumps(user.serialize(), cls=ModelEncoder)
 
 @app.route("/users/<id>", methods=['PUT'])
