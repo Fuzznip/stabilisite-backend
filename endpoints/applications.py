@@ -151,18 +151,36 @@ def get_applications_diary():
     params = request.args
     filter = params.get('filter')
     discord_id = params.get('discord_id')
+    page = params.get('page', type=int)
+    per_page = params.get('per_page', 50, type=int)
+
+    # Clamp per_page to reasonable bounds
+    per_page = max(1, min(per_page, 100))
+
+    query = DiaryApplications.query
 
     if filter is not None:
-        applications = DiaryApplications.query.filter_by(status=filter).all()
+        query = query.filter_by(status=filter)
     elif discord_id is not None:
-        applications = DiaryApplications.query.filter_by(user_id=discord_id).all()
-    else:
-        applications = DiaryApplications.query.all()
+        query = query.filter_by(user_id=discord_id)
 
-    data = []
-    for row in applications:
-        data.append(row.serialize())
-    return data
+    # Order by timestamp descending for consistent results
+    query = query.order_by(DiaryApplications.timestamp.desc())
+
+    # If page is provided, use pagination; otherwise return all results
+    if page is not None:
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        return {
+            "items": [row.serialize() for row in pagination.items],
+            "page": pagination.page,
+            "per_page": pagination.per_page,
+            "total": pagination.total,
+            "pages": pagination.pages,
+            "has_next": pagination.has_next,
+            "has_prev": pagination.has_prev
+        }
+
+    return [row.serialize() for row in query.all()]
 
 @app.route("/applications/diary", methods=['POST'])
 def create_application_diary():

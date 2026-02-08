@@ -75,6 +75,12 @@ def create_split():
 def get_splits():
     begin_date = request.args.get('begin_date')
     end_date = request.args.get('end_date')
+    page = request.args.get('page', type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+
+    # Clamp per_page to reasonable bounds
+    per_page = max(1, min(per_page, 100))
+
     splits_query = Splits.query
 
     if begin_date:
@@ -91,8 +97,23 @@ def get_splits():
         except ValueError:
             return "Invalid end_date format. Use YYYY-MM-DD.", 400
 
-    splits = splits_query.all()
-    return jsonify([split.serialize() for split in splits])
+    # Order by timestamp descending for consistent results
+    splits_query = splits_query.order_by(Splits.timestamp.desc())
+
+    # If page is provided, use pagination; otherwise return all results
+    if page is not None:
+        pagination = splits_query.paginate(page=page, per_page=per_page, error_out=False)
+        return jsonify({
+            "items": [split.serialize() for split in pagination.items],
+            "page": pagination.page,
+            "per_page": pagination.per_page,
+            "total": pagination.total,
+            "pages": pagination.pages,
+            "has_next": pagination.has_next,
+            "has_prev": pagination.has_prev
+        })
+
+    return jsonify([split.serialize() for split in splits_query.all()])
 
 @app.route("/splits/<id>", methods=['PUT'])
 def update_split(id):
