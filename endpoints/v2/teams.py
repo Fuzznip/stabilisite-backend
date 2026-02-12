@@ -118,11 +118,11 @@ def add_team_member(team_id):
         return jsonify({'error': 'Team not found'}), 404
 
     data = request.get_json()
-    if not data or 'user_id' not in data:
-        return jsonify({'error': 'user_id is required'}), 400
+    if not data or 'discord_id' not in data:
+        return jsonify({'error': 'discord_id is required'}), 400
 
     # Check if user exists
-    user = Users.query.filter_by(discord_id=data['user_id']).first()
+    user = Users.query.filter_by(discord_id=data['discord_id']).first()
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
