@@ -126,10 +126,18 @@ def add_team_member(team_id):
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
-    # Check if already a member
+    # Check if already a member of this team
     existing = TeamMember.query.filter_by(team_id=team_id, user_id=data['user_id']).first()
     if existing:
         return jsonify({'error': 'User is already a member of this team'}), 400
+
+    # Check if user is already on another team in the same event
+    existing_in_event = TeamMember.query.join(Team, TeamMember.team_id == Team.id).filter(
+        Team.event_id == team.event_id,
+        TeamMember.user_id == data['user_id']
+    ).first()
+    if existing_in_event:
+        return jsonify({'error': 'User is already on a team for this event'}), 400
 
     member_data = {
         'team_id': team_id,
