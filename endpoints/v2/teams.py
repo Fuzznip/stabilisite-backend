@@ -5,6 +5,7 @@ from models.models import Users
 from services.crud_service import CRUDService
 from helper.helpers import ModelEncoder
 import json
+import uuid
 import logging
 
 @app.route("/v2/teams", methods=['GET'])
@@ -121,10 +122,22 @@ def add_team_member(team_id):
     if not data or 'discord_id' not in data:
         return jsonify({'error': 'discord_id is required'}), 400
 
-    # Check if user exists
+    # Check if user exists, create as guest if not
     user = Users.query.filter_by(discord_id=data['discord_id']).first()
     if not user:
-        return jsonify({'error': 'User not found'}), 404
+        if 'username' not in data:
+            return jsonify({'error': 'username is required when creating a new user'}), 400
+
+        user = Users(
+            id=uuid.uuid4(),
+            discord_id=data['discord_id'],
+            runescape_name=data['username'],
+            is_member=False,
+            rank='Guest',
+            is_active=True
+        )
+        db.session.add(user)
+        db.session.commit()
 
     # Check if user is already on another team in the same event
     existing_in_event = TeamMember.query.join(Team, TeamMember.team_id == Team.id).filter(
