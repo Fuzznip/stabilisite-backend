@@ -35,7 +35,7 @@ def write_to_firestore(submission: EventSubmission, event: Event, action: Action
         drop["team_name"] = team.name
     try:
         if firestore_db:
-            firestore_db.collection("drops").add(drop)
+            firestore_db.collection(f"drops_{event.id}").add(drop)
             logging.info(f"Wrote drop to Firestore for action: {action.id}")
     except Exception as e:
         logging.exception(f"Failed to write drop to Firestore for action: {action.id} : {e}")
