@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from app import app, db
 from flask import request, jsonify
-from models.new_events import Event
-from models.models import Users, Events, EventTeams, EventTeamMemberMappings, DailyRiddle, DailyRiddleSolution
+from models.new_events import Event, DailyRiddle, DailyRiddleSolution, TeamMember
+from models.models import Users
 from services.crud_service import CRUDService
 from helper.helpers import ModelEncoder
 import json
@@ -210,49 +210,44 @@ def guess_riddle():
         item_name = data['item_name'].lower().strip()
         location = data['location'].lower().strip()
         
-        now_utc = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
         
-        # Find the active event
-        active_event = Events.query.filter(
-            Events.start_time <= now_utc,
-            Events.end_time >= now_utc
+        # Find the active event using new_events.Event
+        active_event = Event.query.filter(
+            Event.start_date <= now,
+            Event.end_date >= now
         ).first()
         
         if not active_event:
             return jsonify({"error": "No active event"}), 400
         
-        # Find team for this user in the active event
-        team_member = EventTeamMemberMappings.query.filter_by(
-            event_id=active_event.id,
-            discord_id=discord_id
-        ).first()
+        # Find user by discord_id
+        user = Users.query.filter_by(discord_id=discord_id).first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
         
+        # Find team for this user
+        team_member = TeamMember.query.filter_by(user_id=user.id).first()
         if not team_member:
             return jsonify({"error": "User is not part of a team"}), 400
         
-        # Get the team details
-        team = EventTeams.query.filter_by(id=team_member.team_id).first()
-        if not team:
-            return jsonify({"error": "Team not found"}), 404
+        team = team_member.team
         
-        # Get all solved riddles for this team in this event
-        solved_solutions = DailyRiddleSolution.query.filter_by(
-            event_id=active_event.id,
-            team_id=team.id
-        ).all()
+        # Get all solved riddles for this team from DailyRiddleSolution table
+        solved_solutions = DailyRiddleSolution.query.filter_by(team_id=team.id).all()
         solved_riddle_ids = {solution.riddle_id for solution in solved_solutions}
         
         # Get all unsolved riddles in this event with release_timestamp before current time
         if solved_riddle_ids:
             unsolved_riddles = DailyRiddle.query.filter(
                 DailyRiddle.event_id == active_event.id,
-                DailyRiddle.release_timestamp <= now_utc,
+                DailyRiddle.release_timestamp <= now,
                 ~DailyRiddle.id.in_(solved_riddle_ids)
             ).all()
         else:
             unsolved_riddles = DailyRiddle.query.filter(
                 DailyRiddle.event_id == active_event.id,
-                DailyRiddle.release_timestamp <= now_utc
+                DailyRiddle.release_timestamp <= now
             ).all()
         
         # Check matches
@@ -282,7 +277,6 @@ def guess_riddle():
         if puzzle_solved:
             # Mark the riddle as solved
             solution = DailyRiddleSolution(
-                event_id=active_event.id,
                 team_id=team.id,
                 riddle_id=solved_riddle.id
             )
