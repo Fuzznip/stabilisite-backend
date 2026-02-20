@@ -392,6 +392,8 @@ def check_column_for_bingo(tile_index: int, team: Team, event: Event) -> bool:
 
 def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     """Main handler for bingo event submissions"""
+    logging.info(f"[BINGO] Received submission: rsn={submission.rsn}, discord_id={submission.id}, trigger={submission.trigger!r}, source={submission.source!r}, type={submission.type}, quantity={submission.quantity}")
+
     # Find active bingo event
     now = datetime.now(timezone.utc)
     event = Event.query.filter(
@@ -420,6 +422,23 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         logging.warning(f"User not found for submission: rsn={submission.rsn}, discord_id={submission.id}")
         return []
 
+    # Check for near-duplicate submission (same player + trigger within 30 seconds)
+    from datetime import timedelta
+    recent_cutoff = now - timedelta(seconds=30)
+    recent_action = Action.query.filter(
+        Action.player_id == user.id,
+        func.lower(Action.name) == submission.trigger.lower(),
+        Action.date >= recent_cutoff
+    ).order_by(Action.date.desc()).first()
+
+    if recent_action:
+        seconds_ago = (now - recent_action.date).total_seconds()
+        logging.warning(
+            f"[BINGO] DUPLICATE DETECTED: rsn={submission.rsn}, trigger={submission.trigger!r} "
+            f"already submitted {seconds_ago:.1f}s ago (action_id={recent_action.id}). "
+            f"This submission will still be processed."
+        )
+
     # Check if user is a team member in this event (do this early so we can include in Firestore)
     team = None
     team_member = TeamMember.query.join(Team).filter(
@@ -442,6 +461,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     )
     db.session.add(action)
     db.session.commit()
+    logging.info(f"[BINGO] Action created: id={action.id}, player={user.runescape_name}, trigger={submission.trigger!r}, team={team.name if team else 'none'}")
 
     # Write to Firestore (backwards compatibility) - includes user and team info
     write_to_firestore(submission, event, action, user, team)
