@@ -85,7 +85,8 @@ def get_active_event():
 @app.route("/v2/events/<id>", methods=['GET'])
 def get_event(id):
     """Get a single event by ID"""
-    from models.new_events import Team, Tile
+    from models.new_events import Team, Tile, TeamMember
+    from models.models import Users
 
     event = CRUDService.get_by_id(Event, id)
     if not event:
@@ -96,7 +97,36 @@ def get_event(id):
     tiles = Tile.query.filter_by(event_id=id).order_by(Tile.index).all()
 
     response = event.serialize()
-    response['teams'] = [team.serialize() for team in teams]
+
+    # Batch fetch all team members for all teams in one query
+    team_ids = [team.id for team in teams]
+    all_members = TeamMember.query.filter(TeamMember.team_id.in_(team_ids)).all() if team_ids else []
+
+    # Batch fetch all users for those members in one query
+    user_ids = list(set(m.user_id for m in all_members))
+    all_users = Users.query.filter(Users.id.in_(user_ids)).all() if user_ids else []
+    users_by_id = {user.id: user for user in all_users}
+
+    # Group members by team_id
+    members_by_team = {}
+    for member in all_members:
+        if member.team_id not in members_by_team:
+            members_by_team[member.team_id] = []
+        members_by_team[member.team_id].append(member)
+
+    # Serialize teams with member names
+    teams_data = []
+    for team in teams:
+        team_dict = team.serialize()
+        team_members = members_by_team.get(team.id, [])
+        team_dict['members'] = [
+            users_by_id[m.user_id].runescape_name
+            for m in team_members
+            if m.user_id in users_by_id
+        ]
+        teams_data.append(team_dict)
+
+    response['teams'] = teams_data
     response['tiles'] = [tile.serialize() for tile in tiles]
 
     return json.dumps(response, cls=ModelEncoder), 200
