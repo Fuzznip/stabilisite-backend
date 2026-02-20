@@ -422,22 +422,15 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         logging.warning(f"User not found for submission: rsn={submission.rsn}, discord_id={submission.id}")
         return []
 
-    # Check for near-duplicate submission (same player + trigger within 30 seconds)
-    from datetime import timedelta
-    recent_cutoff = now - timedelta(seconds=30)
-    recent_action = Action.query.filter(
-        Action.player_id == user.id,
-        func.lower(Action.name) == submission.trigger.lower(),
-        Action.date >= recent_cutoff
-    ).order_by(Action.date.desc()).first()
-
-    if recent_action:
-        seconds_ago = (now - recent_action.date).total_seconds()
-        logging.warning(
-            f"[BINGO] DUPLICATE DETECTED: rsn={submission.rsn}, trigger={submission.trigger!r} "
-            f"already submitted {seconds_ago:.1f}s ago (action_id={recent_action.id}). "
-            f"This submission will still be processed."
-        )
+    # Idempotency check: if a request_id is provided, reject if already processed
+    if submission.request_id:
+        existing_action = Action.query.filter_by(request_id=submission.request_id).first()
+        if existing_action:
+            logging.warning(
+                f"[BINGO] DUPLICATE DETECTED: request_id={submission.request_id!r} already processed "
+                f"(action_id={existing_action.id}). Skipping."
+            )
+            return []
 
     # Check if user is a team member in this event (do this early so we can include in Firestore)
     team = None
@@ -457,7 +450,8 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         source=submission.source,
         quantity=submission.quantity,
         value=submission.totalValue,
-        date=datetime.now(timezone.utc)
+        date=datetime.now(timezone.utc),
+        request_id=submission.request_id
     )
     db.session.add(action)
     db.session.commit()

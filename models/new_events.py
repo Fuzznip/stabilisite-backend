@@ -83,7 +83,10 @@ class TeamMember(db.Model, Serializer):
 
 class Action(db.Model, Serializer):
     __tablename__ = 'actions'
-    __table_args__ = {'schema': 'new_stability'}
+    __table_args__ = (
+        db.UniqueConstraint('request_id', name='actions_unique_request_id'),
+        {'schema': 'new_stability'}
+    )
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     player_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
@@ -94,6 +97,7 @@ class Action(db.Model, Serializer):
     value = db.Column(db.Integer)  # Item value or other numeric value associated with the action
     date = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    request_id = db.Column(db.String(255), nullable=True, unique=True)
 
     # Relationships
     challenge_proofs = db.relationship('ChallengeProof', back_populates='action', cascade='all, delete-orphan')
