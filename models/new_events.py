@@ -17,6 +17,7 @@ class Event(db.Model, Serializer):
     name = db.Column(db.String(255), nullable=False)
     start_date = db.Column(db.DateTime(timezone=True), nullable=False)
     end_date = db.Column(db.DateTime(timezone=True), nullable=False)
+    release_date = db.Column(db.DateTime(timezone=True), nullable=True)  # When the event becomes publicly visible
     thread_id = db.Column(db.String(255))  # Discord thread ID for notifications
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
