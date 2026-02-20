@@ -286,3 +286,39 @@ class ChallengeProof(db.Model, Serializer):
 
     def serialize(self):
         return Serializer.serialize(self)
+
+
+class DailyRiddle(db.Model, Serializer):
+    __tablename__ = 'daily_riddles'
+    __table_args__ = {'schema': 'new_stability'}
+
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.events.id', ondelete='CASCADE'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    riddle = db.Column(db.Text, nullable=False)
+    item_name = db.Column(db.String(255), nullable=False)
+    location = db.Column(db.String(255), nullable=False)
+    image_link = db.Column(db.String(512))
+    release_timestamp = db.Column(db.DateTime(timezone=True), nullable=False)
+    last_edited_timestamp = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    def serialize(self):
+        return Serializer.serialize(self)
+
+
+class DailyRiddleSolution(db.Model, Serializer):
+    __tablename__ = 'daily_riddle_solutions'
+    __table_args__ = (
+        db.UniqueConstraint('team_id', 'riddle_id', name='riddle_solutions_unique_team_riddle'),
+        {'schema': 'new_stability'}
+    )
+
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='CASCADE'), nullable=False)
+    riddle_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.daily_riddles.id', ondelete='CASCADE'), nullable=False)
+    solved_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    def serialize(self):
+        return Serializer.serialize(self)
