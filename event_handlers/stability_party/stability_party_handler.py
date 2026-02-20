@@ -406,7 +406,7 @@ def stability_party_handler(submission: EventSubmission) -> list[NotificationRes
     ).first()
 
     if event is None:
-        logging.info(f"No active STABILITY_PARTY event found for submission by {submission.rsn}.")
+        # logging.info(f"No active STABILITY_PARTY event found for submission by {submission.rsn}.")
         return None # Or an empty list
 
     team = get_team_from_rsn(event.id, submission.rsn)
