@@ -310,3 +310,57 @@ def guess_riddle():
     except Exception as e:
         logging.error(f"Error processing riddle guess: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/riddles", methods=['GET'])
+def get_riddles():
+    """
+    Get all riddles released before a given timepoint.
+    
+    Query Parameters:
+    - timepoint (optional): ISO format datetime string. Defaults to current time.
+    
+    Response:
+    {
+        "riddles": [
+            {
+                "id": "uuid",
+                "name": "riddle_name",
+                "riddle": "riddle_text",
+                "release_timestamp": "2026-02-20T12:00:00+00:00"
+            }
+        ]
+    }
+    """
+    try:
+        # Get timepoint from query params or default to now
+        timepoint_str = request.args.get('timepoint')
+        if timepoint_str:
+            try:
+                timepoint = datetime.fromisoformat(timepoint_str.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({"error": "Invalid timepoint format. Use ISO format (e.g., 2026-02-20T12:00:00Z)"}), 400
+        else:
+            timepoint = datetime.now(timezone.utc)
+        
+        # Query riddles released before the timepoint
+        riddles = DailyRiddle.query.filter(
+            DailyRiddle.release_timestamp <= timepoint
+        ).order_by(DailyRiddle.release_timestamp).all()
+        
+        # Return only id, name, riddle, and release_timestamp (exclude item_name and location)
+        riddles_data = [
+            {
+                "id": str(riddle.id),
+                "name": riddle.name,
+                "riddle": riddle.riddle,
+                "release_timestamp": riddle.release_timestamp.isoformat() if riddle.release_timestamp else None
+            }
+            for riddle in riddles
+        ]
+        
+        return jsonify({"riddles": riddles_data}), 200
+        
+    except Exception as e:
+        logging.error(f"Error fetching riddles: {str(e)}")
+        return jsonify({"error": str(e)}), 500
