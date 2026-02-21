@@ -9,14 +9,18 @@ from models.new_events import (
 )
 
 import logging
+import threading
 from sqlalchemy import func, text
+from sqlalchemy.orm import joinedload
+
 
 def write_to_firestore(submission: EventSubmission, event: Event, action: Action, user: Users, team: Team | None = None):
-    """Write submission to Firestore for backwards compatibility"""
+    """Write submission to Firestore for backwards compatibility (fire-and-forget)"""
+    # Build the drop dict on the calling thread while SQLAlchemy objects are still valid
     drop = {
         "id": str(action.id),
         "event_id": str(event.id),
-        "rsn": submission.rsn,  # Original submitted RSN (may be alt name)
+        "rsn": submission.rsn,
         "discord_id": submission.id,
         "trigger": submission.trigger,
         "source": submission.source,
@@ -25,77 +29,77 @@ def write_to_firestore(submission: EventSubmission, event: Event, action: Action
         "value": submission.totalValue,
         "timestamp": action.date.isoformat() if action.date else None,
         "img_path": submission.img_path,
-        # Resolved user info (the actual user, which may differ from submitted RSN if alt was used)
         "player_id": str(user.id),
         "player_rsn": user.runescape_name,
     }
-    # Add team info if user is on a team
     if team:
         drop["team_id"] = str(team.id)
         drop["team_name"] = team.name
-    try:
-        if firestore_db:
-            firestore_db.collection(f"drops_{event.id}").add(drop)
-            logging.info(f"Wrote drop to Firestore for action: {action.id}")
-    except Exception as e:
-        logging.exception(f"Failed to write drop to Firestore for action: {action.id} : {e}")
+
+    collection_name = f"drops_{event.id}"
+
+    def _write():
+        try:
+            if firestore_db:
+                firestore_db.collection(collection_name).add(drop)
+                logging.info(f"Wrote drop to Firestore for action: {drop['id']}")
+        except Exception as e:
+            logging.exception(f"Failed to write drop to Firestore for action: {drop['id']} : {e}")
+
+    threading.Thread(target=_write, daemon=True).start()
 
 
 def process_submission_for_team(event: Event, submission: EventSubmission, team: Team, action: Action) -> list[int]:
     """
     Process a submission for a team and return list of tile indices where tasks were completed.
 
-    This function:
-    1. Finds all tiles for the event
-    2. For each tile, checks all tasks
-    3. For each task, checks all challenges
-    4. If a challenge matches the submission, updates progress
-    5. Returns list of tile indices where tasks were completed
+    Batch-loads all tiles, tasks, challenges, and triggers for the event upfront
+    to avoid N+1 query patterns.
     """
     completed_task_tile_indices = []
 
-    # Get all tiles for this event
+    # Batch load all data for this event in 4 queries
     tiles = Tile.query.filter_by(event_id=event.id).all()
     if not tiles:
         logging.error(f"No tiles found for event {event.id}")
         return []
 
+    tile_ids = [t.id for t in tiles]
+    all_tasks = Task.query.filter(Task.tile_id.in_(tile_ids)).all()
+    task_ids = [t.id for t in all_tasks]
+    all_challenges = Challenge.query.filter(Challenge.task_id.in_(task_ids)).all() if task_ids else []
+
+    trigger_ids = list(set(c.trigger_id for c in all_challenges if c.trigger_id))
+    all_triggers = Trigger.query.filter(Trigger.id.in_(trigger_ids)).all() if trigger_ids else []
+
+    # Build lookup dicts
+    triggers_by_id = {t.id: t for t in all_triggers}
+    tasks_by_tile = {}
+    for task in all_tasks:
+        tasks_by_tile.setdefault(task.tile_id, []).append(task)
+    challenges_by_task = {}
+    for challenge in all_challenges:
+        challenges_by_task.setdefault(challenge.task_id, []).append(challenge)
+
+    # Pre-normalize submission values
+    submission_trigger_lower = submission.trigger.lower()
+    submission_source_lower = submission.source.lower() if submission.source else ""
+
     for tile in tiles:
-        # Get all tasks for this tile
-        tasks = Task.query.filter_by(tile_id=tile.id).all()
-        if not tasks:
-            continue
-
-        for task in tasks:
-            # Get all challenges for this task
-            challenges = Challenge.query.filter_by(task_id=task.id).all()
-            if not challenges:
-                continue
-
-            for challenge in challenges:
-                # Skip parent challenges (no trigger)
+        for task in tasks_by_tile.get(tile.id, []):
+            for challenge in challenges_by_task.get(task.id, []):
                 if not challenge.trigger_id:
                     continue
 
-                # Get the trigger for this challenge
-                trigger = Trigger.query.filter_by(id=challenge.trigger_id).first()
+                trigger = triggers_by_id.get(challenge.trigger_id)
                 if not trigger:
                     continue
 
-                # Check if submission matches this trigger
-                trigger_name_match = trigger.name.lower() == submission.trigger.lower()
-
-                # Normalize source for comparison
+                trigger_name_match = trigger.name.lower() == submission_trigger_lower
                 trigger_source_norm = trigger.source.lower() if trigger.source else ""
-                submission_source_norm = submission.source.lower() if submission.source else ""
-
-                # If trigger source is empty, it can match any submission source (wildcard)
-                # OR if trigger source is specified, it must match submission source
-                # For CHAT triggers, ignore source matching entirely (match on name only)
-                source_matches = (trigger.type == "CHAT") or (not trigger_source_norm) or (trigger_source_norm == submission_source_norm)
+                source_matches = (trigger.type == "CHAT") or (not trigger_source_norm) or (trigger_source_norm == submission_source_lower)
 
                 if trigger_name_match and source_matches:
-                    # This submission matches this challenge! Update progress
                     task_completed = update_challenge_progress(
                         team, task, challenge, action, submission
                     )
@@ -172,22 +176,25 @@ def update_parent_challenge_progress(team: Team, task: Task, child_challenge: Ch
     if not parent_challenge:
         return False
 
-    # Sum the progress of all child challenges
+    # Batch load all child challenges and their statuses
     child_challenges = Challenge.query.filter_by(
         parent_challenge_id=parent_challenge.id
     ).all()
 
+    child_ids = [c.id for c in child_challenges]
+    child_statuses = ChallengeStatus.query.filter(
+        ChallengeStatus.team_id == team.id,
+        ChallengeStatus.challenge_id.in_(child_ids)
+    ).all() if child_ids else []
+    status_by_challenge = {s.challenge_id: s for s in child_statuses}
+
     total_children_value = 0
     for child in child_challenges:
-        child_status = ChallengeStatus.query.filter_by(
-            team_id=team.id,
-            challenge_id=child.id
-        ).first()
+        child_status = status_by_challenge.get(child.id)
 
         if child_status:
             if child.quantity is None:
                 # Repeatable child: multiply status quantity by child's value
-                # Each submission counts as (child.value) points towards parent
                 total_children_value += child_status.quantity * (child.value or 1)
             elif child_status.completed:
                 # Completable child: add the child's value when completed
@@ -258,18 +265,21 @@ def check_and_update_task_completion(team: Team, task: Task) -> bool:
     all_challenges = Challenge.query.filter_by(task_id=task.id).all()
     challenges = [c for c in all_challenges if c.parent_challenge_id is None]
 
-    # Check if all challenges are complete
+    # Batch load all challenge statuses in one query
+    challenge_ids = [c.id for c in challenges]
+    statuses = ChallengeStatus.query.filter(
+        ChallengeStatus.team_id == team.id,
+        ChallengeStatus.challenge_id.in_(challenge_ids)
+    ).all() if challenge_ids else []
+    status_by_id = {s.challenge_id: s for s in statuses}
+
+    # Check if challenges are complete
     if task.require_all:
         # AND logic: all top-level challenges must be complete
-        all_complete = True
-        for challenge in challenges:
-            challenge_status = ChallengeStatus.query.filter_by(
-                team_id=team.id,
-                challenge_id=challenge.id
-            ).first()
-            if not challenge_status or not challenge_status.completed:
-                all_complete = False
-                break
+        all_complete = all(
+            (s := status_by_id.get(c.id)) and s.completed
+            for c in challenges
+        )
 
         if all_complete:
             task_status.completed = True
@@ -279,11 +289,8 @@ def check_and_update_task_completion(team: Team, task: Task) -> bool:
     else:
         # OR logic: any top-level challenge can complete the task
         for challenge in challenges:
-            challenge_status = ChallengeStatus.query.filter_by(
-                team_id=team.id,
-                challenge_id=challenge.id
-            ).first()
-            if challenge_status and challenge_status.completed:
+            s = status_by_id.get(challenge.id)
+            if s and s.completed:
                 task_status.completed = True
                 update_tile_status(team, task.tile_id)
                 db.session.commit()
@@ -309,89 +316,71 @@ def update_tile_status(team: Team, tile_id: str):
         )
         db.session.add(tile_status)
 
-    # Count completed tasks for this tile
-    tasks = Task.query.filter_by(tile_id=tile_id).all()
-    completed_count = 0
-
-    for task in tasks:
-        task_status = TaskStatus.query.filter_by(
-            team_id=team.id,
-            task_id=task.id
-        ).first()
-        if task_status and task_status.completed:
-            completed_count += 1
+    # Batch count completed tasks in one query instead of N+1
+    task_ids = [t.id for t in Task.query.filter_by(tile_id=tile_id).all()]
+    completed_count = TaskStatus.query.filter(
+        TaskStatus.team_id == team.id,
+        TaskStatus.task_id.in_(task_ids),
+        TaskStatus.completed == True
+    ).count() if task_ids else 0
 
     # Update tile status (cap at 3)
     tile_status.tasks_completed = min(completed_count, 3)
 
-    # Award 3 points per task completed
-    team.points += 3
+    # Award 3 points using atomic SQL UPDATE to prevent race conditions
+    db.session.flush()
+    db.session.execute(
+        text("UPDATE new_stability.teams SET points = points + 3, updated_at = NOW() WHERE id = :team_id"),
+        {"team_id": str(team.id)}
+    )
 
     db.session.commit()
 
 
-def check_row_for_bingo(tile_index: int, team: Team, event: Event) -> bool:
-    """Check if a row has achieved bingo (all tiles have same number of completed tasks)"""
-    # Get the tile at this index to determine completion level
-    tile = Tile.query.filter_by(event_id=event.id, index=tile_index).first()
-    if not tile:
-        return False
+def check_bingos_for_completed_tiles(completed_tile_indices: list[int], team: Team, event: Event) -> int:
+    """
+    Check for new bingos caused by the completed tiles.
+    Uses a single batch query with joinedload instead of per-cell queries.
 
-    tile_status = TileStatus.query.filter_by(team_id=team.id, tile_id=tile.id).first()
-    if not tile_status:
-        return False
+    Returns:
+        Number of new bingos detected
+    """
+    tile_statuses = TileStatus.query.join(Tile).options(
+        joinedload(TileStatus.tile)
+    ).filter(
+        Tile.event_id == event.id,
+        TileStatus.team_id == team.id
+    ).all()
 
-    completed_tasks = tile_status.tasks_completed
-    if completed_tasks == 0:
-        return False
+    # Build 5x5 grid of completion levels
+    grid = [[0] * 5 for _ in range(5)]
+    for ts in tile_statuses:
+        if ts.tile:
+            row, col = ts.tile.index // 5, ts.tile.index % 5
+            grid[row][col] = ts.tasks_completed
 
-    # Find the minimum number of completed tasks in the row
-    row = tile_index // 5
-    min_completed = completed_tasks
+    bingo_count = 0
+    for idx in completed_tile_indices:
+        row, col = idx // 5, idx % 5
+        completed_tasks = grid[row][col]
+        if completed_tasks == 0:
+            continue
 
-    for i in range(5):
-        row_tile_index = row * 5 + i
-        row_tile = Tile.query.filter_by(event_id=event.id, index=row_tile_index).first()
-        if row_tile:
-            row_tile_status = TileStatus.query.filter_by(team_id=team.id, tile_id=row_tile.id).first()
-            tile_completed = row_tile_status.tasks_completed if row_tile_status else 0
-            min_completed = min(min_completed, tile_completed)
+        # Check row: did this tile completing create a row bingo at this level?
+        if min(grid[row]) == completed_tasks:
+            bingo_count += 1
 
-    return min_completed == completed_tasks
+        # Check column: did this tile completing create a column bingo at this level?
+        if min(grid[r][col] for r in range(5)) == completed_tasks:
+            bingo_count += 1
 
-
-def check_column_for_bingo(tile_index: int, team: Team, event: Event) -> bool:
-    """Check if a column has achieved bingo (all tiles have same number of completed tasks)"""
-    # Get the tile at this index to determine completion level
-    tile = Tile.query.filter_by(event_id=event.id, index=tile_index).first()
-    if not tile:
-        return False
-
-    tile_status = TileStatus.query.filter_by(team_id=team.id, tile_id=tile.id).first()
-    if not tile_status:
-        return False
-
-    completed_tasks = tile_status.tasks_completed
-    if completed_tasks == 0:
-        return False
-
-    # Find the minimum number of completed tasks in the column
-    col = tile_index % 5
-    min_completed = completed_tasks
-
-    for i in range(5):
-        col_tile_index = i * 5 + col
-        col_tile = Tile.query.filter_by(event_id=event.id, index=col_tile_index).first()
-        if col_tile:
-            col_tile_status = TileStatus.query.filter_by(team_id=team.id, tile_id=col_tile.id).first()
-            tile_completed = col_tile_status.tasks_completed if col_tile_status else 0
-            min_completed = min(min_completed, tile_completed)
-
-    return min_completed == completed_tasks
+    return bingo_count
 
 
 def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     """Main handler for bingo event submissions"""
+    logging.info(f"[BINGO] Received submission: rsn={submission.rsn}, discord_id={submission.id}, trigger={submission.trigger!r}, source={submission.source!r}, type={submission.type}, quantity={submission.quantity}")
+
     # Find active bingo event
     now = datetime.now(timezone.utc)
     event = Event.query.filter(
@@ -403,24 +392,36 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         logging.info("No active Bingo event found.")
         return []
 
-    # Look up user by runescape_name, alt_names, or discord_id
+    # Look up user by runescape_name, discord_id, then alt_names (cheapest to most expensive)
     user = None
     if submission.rsn:
-        # First try exact match on runescape_name
+        # First try exact match on runescape_name (indexed)
         user = Users.query.filter(func.lower(Users.runescape_name) == submission.rsn.lower()).first()
-        # If not found, check if the RSN is in any user's alt_names (case-insensitive)
-        if not user:
-            user = Users.query.filter(
-                text("lower(:rsn) = ANY(SELECT lower(x) FROM unnest(alt_names) x)")
-            ).params(rsn=submission.rsn).first()
+    # Try discord_id before alt_names (indexed lookup vs full table scan)
     if not user and submission.id:
         user = Users.query.filter_by(discord_id=submission.id).first()
+    # Alt_names uses unnest (full table scan) — only as last resort
+    if not user and submission.rsn:
+        user = Users.query.filter(
+            text("lower(:rsn) = ANY(SELECT lower(x) FROM unnest(alt_names) x)")
+        ).params(rsn=submission.rsn).first()
 
     if not user:
         logging.warning(f"User not found for submission: rsn={submission.rsn}, discord_id={submission.id}")
         return []
 
-    # Check if user is a team member in this event (do this early so we can include in Firestore)
+    # Idempotency check: if a request_id is provided, reject if already processed
+    if submission.request_id:
+        existing_action = Action.query.filter_by(request_id=submission.request_id).first()
+        if existing_action:
+            logging.warning(
+                f"[BINGO] DUPLICATE DETECTED: request_id={submission.request_id!r} already processed "
+                f"(action_id={existing_action.id}). Skipping."
+            )
+            return []
+
+    # Check if user is a team member in this event
+    # Load Team eagerly via the join to avoid a redundant second query
     team = None
     team_member = TeamMember.query.join(Team).filter(
         Team.event_id == event.id,
@@ -438,12 +439,14 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
         source=submission.source,
         quantity=submission.quantity,
         value=submission.totalValue,
-        date=datetime.now(timezone.utc)
+        date=datetime.now(timezone.utc),
+        request_id=submission.request_id
     )
     db.session.add(action)
     db.session.commit()
+    logging.info(f"[BINGO] Action created: id={action.id}, player={user.runescape_name}, trigger={submission.trigger!r}, team={team.name if team else 'none'}")
 
-    # Write to Firestore (backwards compatibility) - includes user and team info
+    # Write to Firestore (backwards compatibility) — fire-and-forget in background thread
     write_to_firestore(submission, event, action, user, team)
 
     # If user is not on a team, we've already logged to Firestore, just return
@@ -458,18 +461,19 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     if not completed_task_tile_indices:
         return []
 
-    # Check for bingos (completed rows/columns)
-    bingo_count = 0
-    for index in completed_task_tile_indices:
-        if check_row_for_bingo(index, team, event):
-            bingo_count += 1
-        if check_column_for_bingo(index, team, event):
-            bingo_count += 1
+    # Check for bingos using batch query (1 query instead of ~40)
+    bingo_count = check_bingos_for_completed_tiles(completed_task_tile_indices, team, event)
 
-    # Award bonus points for bingos
+    # Award bonus points for bingos using atomic SQL UPDATE
     if bingo_count > 0:
-        team.points += bingo_count * 15
+        db.session.execute(
+            text("UPDATE new_stability.teams SET points = points + :pts, updated_at = NOW() WHERE id = :team_id"),
+            {"pts": bingo_count * 15, "team_id": str(team.id)}
+        )
         db.session.commit()
+
+    # Refresh team to get accurate points after atomic updates
+    db.session.refresh(team)
 
     # Construct notification response
     if bingo_count < 1:
