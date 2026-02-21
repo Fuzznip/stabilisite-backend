@@ -1,0 +1,25 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildEnvironment": "V3"
+  },
+  "deploy": {
+    "runtime": "V2",
+    "numReplicas": 1,
+    "startCommand": "waitress-serve --host=0.0.0.0 --port=5000 --threads=16 app:app",
+    "preDeployCommand": [
+      "flask db upgrade"
+    ],
+    "sleepApplication": false,
+    "useLegacyStacker": false,
+    "ipv6EgressEnabled": false,
+    "multiRegionConfig": {
+      "us-west2": {
+        "numReplicas": 1
+      }
+    },
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

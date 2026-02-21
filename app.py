@@ -83,6 +83,12 @@ FIREBASE_CREDENTIALS = os.getenv("FIREBASE_CREDENTIALS")
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI']=f"postgresql://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_URL}"
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 10,
+    'max_overflow': 10,
+    'pool_timeout': 30,
+    'pool_pre_ping': True,
+}
 app_context = app.app_context()
 db = SQLAlchemy(app)
 
