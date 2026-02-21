@@ -281,6 +281,14 @@ def guess_riddle():
                 riddle_id=solved_riddle.id
             )
             db.session.add(solution)
+            # Process an action for solving the riddle
+            from services.action_processor import ActionProcessor
+            ActionProcessor.process_action(
+                player_id=user.id,
+                action_name=solved_riddle.name,
+                action_type="OTHER"
+            )
+
             db.session.commit()
             message = f"Correct! You solved '{solved_riddle.name}'!"
         elif item_name_matches and location_matches:

@@ -400,32 +400,4 @@ class EventLog(db.Model, Serializer):
             "value": self.value,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None
         }
-
-class DailyRiddle(db.Model, Serializer):
-    __tablename__ = 'daily_riddles'
-    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('events.id', ondelete="CASCADE"), nullable=False)  # Cascade delete
-    name = db.Column(db.String, nullable=False)
-    riddle = db.Column(db.Text, nullable=False)
-    item_name = db.Column(db.String, nullable=False)
-    location = db.Column(db.String, nullable=False)
-    image_link = db.Column(db.String)
-    release_timestamp = db.Column(db.DateTime, nullable=False)
-    last_edited_timestamp = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-
-    def serialize(self):
-        return Serializer.serialize(self)
-
-class DailyRiddleSolution(db.Model, Serializer):
-    __tablename__ = 'daily_riddle_solutions'
-    __table_args__ = (db.UniqueConstraint('event_id', 'team_id', 'riddle_id', name='riddle_solutions_unique_event_team_riddle'),)
-    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('events.id', ondelete="CASCADE"), nullable=False)  # Cascade delete
-    team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('event_teams.id', ondelete="CASCADE"), nullable=False)  # Cascade delete
-    riddle_id = db.Column(UUID(as_uuid=True), db.ForeignKey('daily_riddles.id', ondelete="CASCADE"), nullable=False)  # Cascade delete
-    solved_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-
-    def serialize(self):
-        return Serializer.serialize(self)
+    
