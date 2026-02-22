@@ -141,9 +141,14 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
     )
     db.session.add(proof)
 
-    # Update quantity - respect count_per_action if set
+    # Update quantity atomically to avoid race conditions under concurrent submissions
     effective_quantity = challenge.count_per_action if challenge.count_per_action is not None else submission.quantity
-    challenge_status.quantity += effective_quantity
+    db.session.execute(
+        text("UPDATE new_stability.challenge_statuses SET quantity = quantity + :qty, updated_at = NOW() WHERE id = :cs_id"),
+        {"qty": effective_quantity, "cs_id": str(challenge_status.id)}
+    )
+    db.session.flush()
+    db.session.refresh(challenge_status)
 
     # Check if challenge is now complete
     # If quantity is NULL, challenge is repeatable and never completes
