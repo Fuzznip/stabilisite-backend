@@ -7,3 +7,4 @@ static/swagger.json
 *.log
 railway_dump.sql
 *.sql.dump
+.claude
