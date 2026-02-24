@@ -400,11 +400,11 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     # Look up user by runescape_name, discord_id, then alt_names (cheapest to most expensive)
     user = None
     if submission.rsn:
-        # Normalize due to WoM changing underscores to spaces in RSN
-        normalized_rsn = submission.rsn.replace("_", " ")
-        # First try exact match on runescape_name (normalize underscores/spaces on both sides)
+        # Normalize underscores and dashes to spaces (WoM and OSRS treat them as equivalent)
+        normalized_rsn = submission.rsn.replace("_", " ").replace("-", " ")
+        # First try exact match on runescape_name (normalize underscores/dashes/spaces on both sides)
         user = Users.query.filter(
-            func.lower(func.replace(Users.runescape_name, "_", " ")) == normalized_rsn.lower()
+            func.lower(func.replace(func.replace(Users.runescape_name, "_", " "), "-", " ")) == normalized_rsn.lower()
         ).first()
     # Try discord_id before alt_names (indexed lookup vs full table scan)
     if not user and submission.id:
@@ -412,7 +412,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     # Alt_names uses unnest (full table scan) — only as last resort
     if not user and submission.rsn:
         user = Users.query.filter(
-            text("lower(replace(:rsn, '_', ' ')) = ANY(SELECT lower(replace(x, '_', ' ')) FROM unnest(alt_names) x)")
+            text("lower(replace(replace(:rsn, '_', ' '), '-', ' ')) = ANY(SELECT lower(replace(replace(x, '_', ' '), '-', ' ')) FROM unnest(alt_names) x)")
         ).params(rsn=submission.rsn).first()
 
     if not user:
