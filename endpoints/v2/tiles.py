@@ -1,7 +1,6 @@
 from app import app
 from flask import request, jsonify
-from models.new_events import Tile, Task, Challenge, Trigger, Team, TileStatus, TaskStatus, ChallengeStatus, ChallengeProof, Action
-from models.models import Users
+from models.new_events import Tile, Task, Challenge, Trigger, Team, TileStatus, TaskStatus, ChallengeStatus
 from services.crud_service import CRUDService
 from helper.helpers import ModelEncoder
 import json
@@ -163,27 +162,6 @@ def get_tile_progress(tile_id):
         ChallengeStatus.challenge_id.in_(challenge_ids)
     ).all()
     challenge_statuses_by_team_challenge = {(cs.team_id, cs.challenge_id): cs for cs in all_challenge_statuses}
-    challenge_status_ids = [cs.id for cs in all_challenge_statuses]
-
-    # Get all proofs in one query
-    all_proofs = ChallengeProof.query.filter(
-        ChallengeProof.challenge_status_id.in_(challenge_status_ids)
-    ).all() if challenge_status_ids else []
-    proofs_by_challenge_status = {}
-    for proof in all_proofs:
-        if proof.challenge_status_id not in proofs_by_challenge_status:
-            proofs_by_challenge_status[proof.challenge_status_id] = []
-        proofs_by_challenge_status[proof.challenge_status_id].append(proof)
-
-    # Get all actions for proofs in one query
-    action_ids = [p.action_id for p in all_proofs if p.action_id]
-    all_actions = Action.query.filter(Action.id.in_(action_ids)).all() if action_ids else []
-    actions_by_id = {a.id: a for a in all_actions}
-
-    # Get all players for actions in one query
-    player_ids = [a.player_id for a in all_actions if a.player_id]
-    all_players = Users.query.filter(Users.id.in_(player_ids)).all() if player_ids else []
-    players_by_id = {p.id: p for p in all_players}
 
     # Group challenges by task for easier lookup
     challenges_by_task = {}
@@ -259,42 +237,14 @@ def get_tile_progress(tile_id):
                     'value': challenge.value
                 }
 
-                # Add trigger details
                 if challenge.trigger_id and challenge.trigger_id in triggers_by_id:
-                    challenge_status_dict['trigger'] = triggers_by_id[challenge.trigger_id].serialize()
-
-                if challenge_status:
-                    challenge_status_dict['status_id'] = str(challenge_status.id)
-                    challenge_status_dict['created_at'] = challenge_status.created_at.isoformat()
-                    challenge_status_dict['updated_at'] = challenge_status.updated_at.isoformat()
-
-                    # Build proofs with action details from in-memory data
-                    proofs_data = []
-                    for proof in proofs_by_challenge_status.get(challenge_status.id, []):
-                        proof_dict = {
-                            'id': str(proof.id),
-                            'img_path': proof.img_path,
-                            'created_at': proof.created_at.isoformat()
-                        }
-                        action = actions_by_id.get(proof.action_id)
-                        if action:
-                            proof_dict['action'] = {
-                                'id': str(action.id),
-                                'name': action.name,
-                                'source': action.source,
-                                'type': action.type,
-                                'quantity': action.quantity,
-                                'value': action.value,
-                                'date': action.date.isoformat() if action.date else None
-                            }
-                            player = players_by_id.get(action.player_id)
-                            if player:
-                                proof_dict['action']['player'] = {
-                                    'id': str(player.id),
-                                    'runescape_name': player.runescape_name
-                                }
-                        proofs_data.append(proof_dict)
-                    challenge_status_dict['proofs'] = proofs_data
+                    t = triggers_by_id[challenge.trigger_id]
+                    challenge_status_dict['trigger'] = {
+                        'name': t.name,
+                        'img_path': t.img_path,
+                        'source': t.source,
+                        'type': t.type
+                    }
 
                 challenge_statuses.append(challenge_status_dict)
 
