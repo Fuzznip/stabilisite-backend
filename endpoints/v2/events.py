@@ -184,7 +184,8 @@ def guess_riddle():
     {
         "discord_id": "user_discord_id",
         "item_name": "item_name",
-        "location": "location"
+        "location": "location",
+        "has_image": bool (optional, default false)
     }
     
     Response:
@@ -209,6 +210,7 @@ def guess_riddle():
         discord_id = str(data['discord_id'])
         item_name = data['item_name'].lower().strip()
         location = data['location'].lower().strip()
+        has_image = data.get('has_image', False)
         
         now = datetime.now(timezone.utc)
         
@@ -275,22 +277,27 @@ def guess_riddle():
         
         # Determine appropriate message
         if puzzle_solved:
-            # Mark the riddle as solved
-            solution = DailyRiddleSolution(
-                team_id=team.id,
-                riddle_id=solved_riddle.id
-            )
-            db.session.add(solution)
-            # Process an action for solving the riddle
-            from services.action_processor import ActionProcessor
-            ActionProcessor.process_action(
-                player_id=user.id,
-                action_name=solved_riddle.name,
-                action_type="OTHER"
-            )
+            # Only mark the riddle as solved and record action if has_image is true
+            if has_image:
+                # Mark the riddle as solved
+                solution = DailyRiddleSolution(
+                    team_id=team.id,
+                    riddle_id=solved_riddle.id
+                )
+                db.session.add(solution)
+                # Process an action for solving the riddle
+                from services.action_processor import ActionProcessor
+                ActionProcessor.process_action(
+                    player_id=user.id,
+                    action_name=solved_riddle.name,
+                    action_type="OTHER"
+                )
 
-            db.session.commit()
-            message = f"Correct! You solved '{solved_riddle.name}'!"
+                db.session.commit()
+                message = f"Correct! You solved '{solved_riddle.name}'!"
+            else:
+                # Correct answer but no image provided yet
+                message = f"Correct answer! Please submit with an image to complete '{solved_riddle.name}'."
         elif item_name_matches and location_matches:
             message = f"{item_name}: Matches\n{location}: Matches\nBut they don't match the same puzzle."
         elif item_name_matches:
