@@ -141,9 +141,14 @@ def update_challenge_progress(team: Team, task: Task, challenge: Challenge, acti
     )
     db.session.add(proof)
 
-    # Update quantity - respect count_per_action if set
+    # Update quantity atomically to avoid race conditions under concurrent submissions
     effective_quantity = challenge.count_per_action if challenge.count_per_action is not None else submission.quantity
-    challenge_status.quantity += effective_quantity
+    db.session.execute(
+        text("UPDATE new_stability.challenge_statuses SET quantity = quantity + :qty, updated_at = NOW() WHERE id = :cs_id"),
+        {"qty": effective_quantity, "cs_id": str(challenge_status.id)}
+    )
+    db.session.flush()
+    db.session.refresh(challenge_status)
 
     # Check if challenge is now complete
     # If quantity is NULL, challenge is repeatable and never completes
@@ -395,15 +400,19 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     # Look up user by runescape_name, discord_id, then alt_names (cheapest to most expensive)
     user = None
     if submission.rsn:
-        # First try exact match on runescape_name (indexed)
-        user = Users.query.filter(func.lower(Users.runescape_name) == submission.rsn.lower()).first()
+        # Normalize underscores and dashes to spaces (WoM and OSRS treat them as equivalent)
+        normalized_rsn = submission.rsn.replace("_", " ").replace("-", " ")
+        # First try exact match on runescape_name (normalize underscores/dashes/spaces on both sides)
+        user = Users.query.filter(
+            func.lower(func.replace(func.replace(Users.runescape_name, "_", " "), "-", " ")) == normalized_rsn.lower()
+        ).first()
     # Try discord_id before alt_names (indexed lookup vs full table scan)
     if not user and submission.id:
         user = Users.query.filter_by(discord_id=submission.id).first()
     # Alt_names uses unnest (full table scan) — only as last resort
     if not user and submission.rsn:
         user = Users.query.filter(
-            text("lower(:rsn) = ANY(SELECT lower(x) FROM unnest(alt_names) x)")
+            text("lower(replace(replace(:rsn, '_', ' '), '-', ' ')) = ANY(SELECT lower(replace(replace(x, '_', ' '), '-', ' ')) FROM unnest(alt_names) x)")
         ).params(rsn=submission.rsn).first()
 
     if not user:

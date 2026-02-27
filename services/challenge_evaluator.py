@@ -281,6 +281,11 @@ class ChallengeEvaluator:
 
             db.session.commit()
 
+            # Only continue propagating up if this parent was newly completed.
+            # If the parent didn't complete, its own parent shouldn't be incremented.
+            if not parent_complete or was_completed:
+                break
+
             # Move up the chain
             current_challenge = parent
 
