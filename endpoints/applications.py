@@ -2,13 +2,59 @@ from app import app, db
 from helper.helpers import ModelEncoder
 from helper.time_utils import parse_time_to_seconds
 from helper.set_discord_role import *
-from helper.discord_helper import create_discord_text_channel, set_discord_nickname
+from helper.discord_helper import create_discord_text_channel, set_discord_nickname, send_discord_dm
 from flask import request
 from models.models import ClanApplications, Users, RaidTierApplication, RaidTiers, RaidTierLog, ClanRanks, RankApplications
 from models.models import DiaryApplications, DiaryTasks, ClanPointsLog, DiaryCompletionLog
 from helper.clan_points_helper import increment_clan_points, PointTag
 import json, datetime
 import logging
+
+
+def _notify_application_result(application_type, application_id, result, user_id, reason=None):
+    if application_type == "diary":
+        app = DiaryApplications.query.filter_by(id=application_id).first()
+        name = app.diary_name if app else "diary"
+    elif application_type == "raidTier":
+        app = RaidTierApplication.query.filter_by(id=application_id).first()
+        if app:
+            tier = RaidTiers.query.filter_by(id=app.target_raid_tier_id).first()
+            name = f"{tier.tier_name} Tier {tier.tier_order}" if tier else "raid tier"
+        else:
+            name = "raid tier"
+    elif application_type == "rank":
+        app = RankApplications.query.filter_by(id=application_id).first()
+        name = f"{app.desired_rank} rank" if app else "rank"
+    else:
+        name = application_type
+
+    if result == "Accepted":
+        message = (
+            f"Good news! Your {name} has been approved 🎉\n\n"
+        )
+    else:
+        message = (
+            f"Unfortunately, your {name} was not approved at this time for the following reason:\n\n"
+            f"{reason}\n\n"
+            f"If you have any questions, please reach out to a staff member!"
+        )
+    send_discord_dm(user_id, message)
+
+
+@app.route("/applicationResult", methods=['POST'])
+def application_result():
+    body = request.get_json()
+    if body is None:
+        return "No JSON received", 400
+    application_type = body.get("application_type")
+    application_id = body.get("application_id")
+    result = body.get("result")
+    user_id = body.get("user_id")
+    reason = body.get("reason")
+    if not all([application_type, application_id, result, user_id]):
+        return "Missing required fields", 400
+    _notify_application_result(application_type, application_id, result, user_id, reason)
+    return "OK", 200
 
 @app.route("/applications", methods=['GET'])
 def get_applications():
@@ -132,10 +178,8 @@ def reject_application(id):
         return "Could not find Application", 404
     application.status = "Rejected"
     body = request.get_json()
-    if body is None or "reason" not in body:
-        application.reason = "No reason provided"
-    else:
-        application.reason = body["reason"]
+    verdict_reason = body.get("verdict_reason") if body else None
+    application.verdict_reason = verdict_reason or "No reason provided"
     application.verdict_timestamp = datetime.datetime.now(datetime.timezone.utc)
 
     user = Users.query.filter_by(discord_id=application.user_id).first()
@@ -395,8 +439,9 @@ def accept_application_diary(id):
             new_diary_progress.timestamp = datetime.datetime.now(datetime.timezone.utc)
             db.session.add(new_diary_progress)
             db.session.commit()
+            _notify_application_result("diary", id, "Accepted", application.user_id)
             return "Diary application accepted", 200
-            
+
     for i, user_id in enumerate(users):
         user = Users.query.filter_by(discord_id=user_id).first()
         if user is None:
@@ -477,6 +522,7 @@ def accept_application_diary(id):
                 continue
 
     db.session.commit()
+    _notify_application_result("diary", id, "Accepted", application.user_id)
 
     return_json = {
         "successful": update_successful,
@@ -495,13 +541,12 @@ def reject_application_diary(id):
 
     application.status = "Rejected"
     body = request.get_json()
-    if body is None or "reason" not in body:
-        application.reason = "No reason provided"
-    else:
-        application.reason = body["reason"]
+    verdict_reason = body.get("verdict_reason") if body else None
+    application.verdict_reason = verdict_reason or "No reason provided"
     application.verdict_timestamp = datetime.datetime.now(datetime.timezone.utc)
 
     db.session.commit()
+    _notify_application_result("diary", id, "Rejected", application.user_id, application.verdict_reason)
     return "Application rejected", 200
 
 
@@ -636,6 +681,7 @@ def accept_application_raid_tier(id):
         )
 
     db.session.commit()
+    _notify_application_result("raidTier", id, "Accepted", application.user_id)
     return "Application accepted", 200
 
 
@@ -650,12 +696,11 @@ def reject_application_raid_tier(id):
         return "Application is not pending", 400
     application.status = "Rejected"
     body = request.get_json()
-    if body is None or "reason" not in body:
-        application.verdict_reason = "No reason provided"
-    else:
-        application.verdict_reason = body["reason"]
+    verdict_reason = body.get("verdict_reason") if body else None
+    application.verdict_reason = verdict_reason or "No reason provided"
     application.verdict_timestamp = datetime.datetime.now(datetime.timezone.utc)
     db.session.commit()
+    _notify_application_result("raidTier", id, "Rejected", application.user_id, application.verdict_reason)
     return "Application rejected", 200
 
 @app.route("/applications/rank", methods=['GET'])
@@ -760,6 +805,7 @@ def accept_rank_application(id):
 
     # Update application status
     application.status = "Accepted"
+    application.verdict_timestamp = datetime.datetime.now(datetime.timezone.utc)
     # Set user rank
     old_rank = user.rank
     user.rank = application.desired_rank
@@ -770,6 +816,7 @@ def accept_rank_application(id):
     add_discord_roles(user, [user.rank])
 
     db.session.commit()
+    _notify_application_result("rank", id, "Accepted", application.user_id)
     return "Application accepted", 200
 
 @app.route("/applications/rank/<id>/reject", methods=['PUT'])
@@ -785,5 +832,10 @@ def reject_rank_application(id):
 
     # Update application status
     application.status = "Rejected"
+    body = request.get_json()
+    verdict_reason = body.get("verdict_reason") if body else None
+    application.verdict_reason = verdict_reason or "No reason provided"
+    application.verdict_timestamp = datetime.datetime.now(datetime.timezone.utc)
     db.session.commit()
+    _notify_application_result("rank", id, "Rejected", application.user_id, application.verdict_reason)
     return "Application rejected", 200

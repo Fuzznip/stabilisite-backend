@@ -18,7 +18,7 @@ depends_on = None
 
 def upgrade():
     # Add value column to challenges table with default of 1
-    op.update('challenges', sa.Column('value', sa.Integer(), nullable=False, server_default='1'), schema='new_stability')
+    op.add_column('challenges', sa.Column('value', sa.Integer(), nullable=False, server_default='1'), schema='new_stability')
 
 
 def downgrade():
