@@ -40,22 +40,6 @@ def _notify_application_result(application_type, application_id, result, user_id
         )
     send_discord_dm(user_id, message)
 
-
-@app.route("/applicationResult", methods=['POST'])
-def application_result():
-    body = request.get_json()
-    if body is None:
-        return "No JSON received", 400
-    application_type = body.get("application_type")
-    application_id = body.get("application_id")
-    result = body.get("result")
-    user_id = body.get("user_id")
-    reason = body.get("reason")
-    if not all([application_type, application_id, result, user_id]):
-        return "Missing required fields", 400
-    _notify_application_result(application_type, application_id, result, user_id, reason)
-    return "OK", 200
-
 @app.route("/applications", methods=['GET'])
 def get_applications():
     params = request.args
