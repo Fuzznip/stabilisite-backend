@@ -6,6 +6,22 @@ from typing import Optional, List, Dict, Any
 
 load_dotenv()
 
+def send_discord_dm(user_id: str, message: str) -> bool:
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
+
+    token = os.getenv("DISCORD_BOT_API_TOKEN")
+    url = os.getenv("DISCORD_BOT_API") + f"/dm"
+
+    try:
+        response = requests.post(url, json={"user_id": user_id, "message": message, "token": token})
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to send Discord DM: {str(e)}")
+        return False
+
+
 def set_discord_nickname(user_id: str, nickname: str) -> bool:
     """
     Sets the nickname of a user in the Discord server
