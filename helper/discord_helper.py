@@ -7,8 +7,8 @@ from typing import Optional, List, Dict, Any
 load_dotenv()
 
 def send_discord_dm(user_id: str, message: str) -> bool:
-    # if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
-    #     return False
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") != "production":
+        return False
 
     token = os.getenv("DISCORD_BOT_API_TOKEN")
     url = os.getenv("DISCORD_BOT_API") + f"/dm"
