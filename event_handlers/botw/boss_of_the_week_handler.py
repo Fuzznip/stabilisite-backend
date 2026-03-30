@@ -6,23 +6,17 @@ from helper.jsonb import update_jsonb_field
 import random
 
 kc_point_dict = {
-    "phosani's nightmare": 2,
-    "the nightmare": 1,
-    "nightmare of ashihama": 1,
-    "corrupted gauntlet": 0,
-    "gauntlet": 0,
+    "sol heredit": 3
 }
 
 item_point_dict = {
-    "inquisitor's mace": 30,
-    "nightmare staff": 30,
-    "inquisitor's great helm": 50,
-    "inquisitor's hauberk": 50,
-    "inquisitor's plateskirt": 50,
-    "eldritch orb": 100,
-    "harmonised orb": 100,
-    "volatile orb": 100,
-    "little nightmare": 200
+    "uncut onyx": 15,
+    "echo crystal": 15,
+    "sunfire fanatic helm": 15,
+    "sunfire fanatic cuirass": 15,
+    "sunfire fanatic chausses": 15,
+    "tonalztics of ralos (uncharged)": 40,
+    "smol heredit": 45
 }
 
 def botw_handler(submission: EventSubmission) -> list[NotificationResponse]:
