@@ -46,6 +46,7 @@ def get_item_whitelist():
 
     # New event schema triggers
     if new_events:
+        print(f"{new_events}")
         new_event_ids = [event.id for event in new_events]
         new_triggers = (
             NewTrigger.query
