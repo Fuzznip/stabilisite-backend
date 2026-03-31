@@ -84,19 +84,20 @@ def create_application():
     data.timestamp = datetime.datetime.now(datetime.timezone.utc)
     db.session.add(data)
 
-    user = Users()
-    user.discord_id = data.user_id
+    if user is None:
+        user = Users()
+        user.discord_id = data.user_id
+        user.rank_points = 0
+        user.is_admin = False
+        user.diary_points = 0
+        user.event_points = 0
+        db.session.add(user)
+
     user.runescape_name = data.runescape_name
     user.rank = "Applied"
-    user.rank_points = 0
     user.is_member = False
-    user.is_admin = False
     user.is_active = True
-    user.diary_points = 0
-    user.event_points = 0
     user.time_points = 0
-    user.event_points = 0
-    db.session.add(user)
 
     db.session.commit()
     add_discord_role(user, "Applied")
