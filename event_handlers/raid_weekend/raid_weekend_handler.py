@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import math
 from app import db
 from event_handlers.event_handler import EventSubmission, NotificationResponse, NotificationAuthor
 from models.models import Events
@@ -58,7 +59,7 @@ def raid_weekend_event_handler(submission: EventSubmission) -> list[Notification
                 color=0xFF0055,
                 thumbnailImage="https://media.discordapp.net/attachments/1393688970298265661/1393688970457780295/image.png?ex=687b55c0&is=687a0440&hm=128c7766e8f3df069364b383c829f6f99143e5f25bd43162607a0d456beb75b8&=&format=webp&quality=lossless",
                 author=NotificationAuthor(name=f"{submission.rsn}"),
-                description=f"Money"
+                description=f"Money" + "y" * int(math.sqrt(int(submission.totalValue)//1000000)) if submission.totalValue and int(submission.totalValue) > 100000 else "Money"
             )]
 
     return None
