@@ -1,5 +1,5 @@
 from app import db
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from helper.helpers import Serializer
 import uuid
 import datetime
@@ -22,9 +22,12 @@ class Event(db.Model, Serializer):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
+    type = db.Column(db.String(50), nullable=True)  # 'conquest', 'bingo', etc.
+
     # Relationships
     teams = db.relationship('Team', back_populates='event', cascade='all, delete-orphan')
     tiles = db.relationship('Tile', back_populates='event', cascade='all, delete-orphan')
+    regions = db.relationship('Region', back_populates='event', cascade='all, delete-orphan')
 
     def serialize(self):
         return Serializer.serialize(self)
@@ -178,7 +181,7 @@ class Challenge(db.Model, Serializer):
     __table_args__ = {'schema': 'new_stability'}
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    task_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.tasks.id', ondelete='CASCADE'), nullable=False)
+    task_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.tasks.id', ondelete='CASCADE'), nullable=True)
     parent_challenge_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenges.id', ondelete='CASCADE'))
     trigger_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.triggers.id', ondelete='RESTRICT'), nullable=True)
     require_all = db.Column(db.Boolean, nullable=False, default=False)
@@ -322,6 +325,80 @@ class DailyRiddleSolution(db.Model, Serializer):
     team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='CASCADE'), nullable=False)
     riddle_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.daily_riddles.id', ondelete='CASCADE'), nullable=False)
     solved_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    def serialize(self):
+        return Serializer.serialize(self)
+
+
+# =========================================
+# CONQUEST EVENT MODELS
+# =========================================
+
+class Region(db.Model, Serializer):
+    __tablename__ = 'regions'
+    __table_args__ = {'schema': 'new_stability'}
+
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.events.id', ondelete='CASCADE'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    controlling_team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='SET NULL'), nullable=True)
+    green_logged_teams = db.Column(ARRAY(UUID(as_uuid=True)), nullable=False, server_default='{}')
+    image_url = db.Column(db.String(512), nullable=True)
+    offset_x = db.Column(db.Integer, nullable=True)
+    offset_y = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    # Relationships
+    event = db.relationship('Event', back_populates='regions')
+    territories = db.relationship('Territory', back_populates='region', cascade='all, delete-orphan')
+
+    def serialize(self):
+        data = Serializer.serialize(self)
+        data['green_logged_teams'] = [str(t) for t in (self.green_logged_teams or [])]
+        return data
+
+
+class Territory(db.Model, Serializer):
+    __tablename__ = 'territories'
+    __table_args__ = {'schema': 'new_stability'}
+
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    region_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.regions.id', ondelete='CASCADE'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    tier = db.Column(db.String(50), nullable=True)
+    challenge_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenges.id', ondelete='SET NULL'), nullable=True, unique=True)
+    controlling_team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='SET NULL'), nullable=True)
+    display_order = db.Column(db.Integer, nullable=True)
+    offset_x = db.Column(db.Integer, nullable=True)
+    offset_y = db.Column(db.Integer, nullable=True)
+    polygon_points = db.Column(JSONB, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    # Relationships
+    region = db.relationship('Region', back_populates='territories')
+    challenge = db.relationship('Challenge', backref=db.backref('territory', uselist=False))
+
+    def serialize(self):
+        return Serializer.serialize(self)
+
+
+class EventLog(db.Model, Serializer):
+    __tablename__ = 'event_logs'
+    __table_args__ = (
+        db.Index('idx_event_logs_event_created', 'event_id', 'created_at'),
+        db.Index('idx_event_logs_event_type', 'event_id', 'type'),
+        db.Index('idx_event_logs_entity', 'entity_id', 'type'),
+        {'schema': 'new_stability'}
+    )
+
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.events.id', ondelete='CASCADE'), nullable=False)
+    team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='CASCADE'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)
+    entity_type = db.Column(db.String(50), nullable=True)
+    entity_id = db.Column(UUID(as_uuid=True), nullable=True)
+    meta = db.Column(JSONB, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     def serialize(self):
