@@ -168,7 +168,7 @@ def check_green_log(team_id, region_id, session) -> bool:
 
     session.execute(text("""
         UPDATE new_stability.regions
-        SET green_logged_teams = array_append(green_logged_teams, :team_id::uuid)
+        SET green_logged_teams = array_append(green_logged_teams, CAST(:team_id AS uuid))
         WHERE id = :region_id
     """), {"team_id": str(team_id), "region_id": str(region_id)})
 
@@ -205,7 +205,7 @@ def recalculate_team_points(team_id, event_id, session) -> int:
             (
                 SELECT COUNT(*)
                 FROM new_stability.regions
-                WHERE event_id = :event_id AND :team_id::uuid = ANY(green_logged_teams)
+                WHERE event_id = :event_id AND CAST(:team_id AS uuid) = ANY(green_logged_teams)
             ) AS green_logs
     """), {"team_id": str(team_id), "event_id": str(event_id)}).fetchone()
 

@@ -54,7 +54,11 @@ def create_conquest_region(event_id):
     )
     db.session.add(region)
     db.session.commit()
-    return json.dumps(region.serialize(), cls=ModelEncoder), 201
+    return app.response_class(
+        response=json.dumps(region.serialize(), cls=ModelEncoder),
+        status=201,
+        mimetype='application/json',
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +109,11 @@ def create_conquest_territory(region_id):
     )
     db.session.add(territory)
     db.session.commit()
-    return json.dumps(territory.serialize(), cls=ModelEncoder), 201
+    return app.response_class(
+        response=json.dumps(territory.serialize(), cls=ModelEncoder),
+        status=201,
+        mimetype='application/json',
+    )
 
 
 @app.route('/v2/territories/<territory_id>', methods=['PUT'])
@@ -129,7 +137,11 @@ def update_conquest_territory(territory_id):
             setattr(territory, field, data[field])
 
     db.session.commit()
-    return json.dumps(territory.serialize(), cls=ModelEncoder), 200
+    return app.response_class(
+        response=json.dumps(territory.serialize(), cls=ModelEncoder),
+        status=200,
+        mimetype='application/json',
+    )
 
 
 # ---------------------------------------------------------------------------
