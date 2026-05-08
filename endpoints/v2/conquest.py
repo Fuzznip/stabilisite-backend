@@ -5,7 +5,7 @@ import queue
 from app import app, db
 from flask import Response, jsonify, request, stream_with_context
 from helper.helpers import ModelEncoder
-from models.new_events import Event, EventLog, Region, Territory
+from models.new_events import Challenge, ChallengeStatus, Event, EventLog, Region, Team, Territory
 from services.conquest_service import sse_clients
 
 
@@ -142,6 +142,43 @@ def update_conquest_territory(territory_id):
         status=200,
         mimetype='application/json',
     )
+
+
+@app.route('/v2/territories/<territory_id>/progress', methods=['GET'])
+def get_territory_progress(territory_id):
+    territory = Territory.query.get(territory_id)
+    if not territory:
+        return jsonify({'error': 'Territory not found'}), 404
+
+    region = Region.query.get(territory.region_id)
+    _, err = _require_conquest_event(str(region.event_id))
+    if err:
+        return err
+
+    if not territory.challenge_id:
+        return jsonify({'data': []}), 200
+
+    challenge = Challenge.query.get(territory.challenge_id)
+    teams = Team.query.filter_by(event_id=region.event_id).all()
+
+    statuses_by_team = {
+        cs.team_id: cs
+        for cs in ChallengeStatus.query.filter_by(challenge_id=territory.challenge_id).all()
+    }
+
+    data = []
+    for team in teams:
+        cs = statuses_by_team.get(team.id)
+        quantity = cs.quantity if cs else 0
+        data.append({
+            'team_id': str(team.id),
+            'team_name': team.name,
+            'quantity': quantity,
+            'required': challenge.quantity,
+            'completions': quantity // challenge.quantity,
+        })
+
+    return jsonify({'data': data}), 200
 
 
 # ---------------------------------------------------------------------------

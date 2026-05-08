@@ -1,0 +1,494 @@
+[
+    {
+        "name": "karamja",
+        "filename": "karamja.png",
+        "label_filename": "karamja_labels.png",
+        "imageWidth": 43,
+        "imageHeight": 73,
+        "offsetX": 258,
+        "offsetY": 108,
+        "territories": [
+            {
+                "id": "6146558d-e52b-4334-bf65-904ff6120c7b",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 1416,
+                "cx": 19,
+                "cy": 45
+            },
+            {
+                "id": "218e54fa-78e0-46e6-851f-c58d041edee5",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 198,
+                "cx": 36,
+                "cy": 48
+            },
+            {
+                "id": "bf3fc6fb-4e77-4e19-819f-fda16620013b",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 133,
+                "cx": 19,
+                "cy": 6
+            }
+        ],
+        "region_id": "5112cda6-3631-4bb7-bf66-dc73f2d18f2b"
+    },
+    {
+        "name": "fremennik",
+        "filename": "fremennik.png",
+        "label_filename": "fremennik_labels.png",
+        "imageWidth": 176,
+        "imageHeight": 70,
+        "offsetX": 141,
+        "offsetY": 0,
+        "territories": [
+            {
+                "id": "8ed07d87-82e6-426f-b304-ac825b5c6439",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 1119,
+                "cx": 114,
+                "cy": 52
+            },
+            {
+                "id": "3a17ebb8-8cb5-4a37-958c-19210626d45c",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 861,
+                "cx": 157,
+                "cy": 18
+            },
+            {
+                "id": "65794647-a015-4546-8cb6-356def89a741",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 773,
+                "cx": 46,
+                "cy": 18
+            },
+            {
+                "id": "c9d19c0a-5ef7-49a7-93a5-edeb54c57b9b",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 357,
+                "cx": 9,
+                "cy": 15
+            },
+            {
+                "id": "c8a4cb94-d601-46a7-bf66-b57afc6f860b",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 512,
+                "cx": 83,
+                "cy": 19
+            }
+        ],
+        "region_id": "009eabdd-c422-492f-93df-45d9fb0ae597"
+    },
+    {
+        "name": "misthalin",
+        "filename": "misthalin.png",
+        "label_filename": "misthalin_labels.png",
+        "imageWidth": 286,
+        "imageHeight": 184,
+        "offsetX": 154,
+        "offsetY": 17,
+        "territories": [
+            {
+                "id": "e74039a8-546c-4077-a513-2d39b1cbf56f",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 2765,
+                "cx": 185,
+                "cy": 81
+            },
+            {
+                "id": "bc68967b-1f70-40ef-8670-0ac5109fb717",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 1210,
+                "cx": 19,
+                "cy": 162
+            },
+            {
+                "id": "209f87ec-1cdb-4598-9c24-9d908772fa48",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 703,
+                "cx": 267,
+                "cy": 17
+            },
+            {
+                "id": "307bc7db-409b-4d6e-a7c4-77a6bbcab50b",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 183,
+                "cx": 167,
+                "cy": 125
+            }
+        ],
+        "region_id": "be5bd5eb-a3c8-497f-98eb-17ece45bb3ed"
+    },
+    {
+        "name": "asgarnia",
+        "filename": "asgarnia.png",
+        "label_filename": "asgarnia_labels.png",
+        "imageWidth": 89,
+        "imageHeight": 193,
+        "offsetX": 224,
+        "offsetY": 18,
+        "territories": [
+            {
+                "id": "c3859550-d435-42c0-bb46-517f068d2f6f",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 2762,
+                "cx": 69,
+                "cy": 56
+            },
+            {
+                "id": "e4cef34d-8ff2-45c3-bbd4-197620add559",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 229,
+                "cx": 6,
+                "cy": 182
+            }
+        ],
+        "region_id": "734a2898-2b0c-43d0-9c53-f0c11d9692b6"
+    },
+    {
+        "name": "kandarin",
+        "filename": "kandarin.png",
+        "label_filename": "kandarin_labels.png",
+        "imageWidth": 117,
+        "imageHeight": 166,
+        "offsetX": 181,
+        "offsetY": 45,
+        "territories": [
+            {
+                "id": "cf32cc07-e4b8-4e2c-a2f2-d06cd264c4b6",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 1766,
+                "cx": 66,
+                "cy": 48
+            },
+            {
+                "id": "5825ac0d-2602-4b26-9ed4-c1a6b74e015c",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 2294,
+                "cx": 43,
+                "cy": 101
+            },
+            {
+                "id": "1acd2926-2444-4446-812f-e2d5256e0d1c",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 1663,
+                "cx": 23,
+                "cy": 35
+            },
+            {
+                "id": "738887c8-04b2-4361-bd59-2ec4a571e6e8",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 408,
+                "cx": 85,
+                "cy": 154
+            },
+            {
+                "id": "014d08f7-c0d0-4f02-ba4e-65da3852c88f",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 60,
+                "cx": 112,
+                "cy": 159
+            }
+        ],
+        "region_id": "01ff7e18-ae39-4f46-85d9-0b0d4aa93cc2"
+    },
+    {
+        "name": "desert",
+        "filename": "desert.png",
+        "label_filename": "desert_labels.png",
+        "imageWidth": 67,
+        "imageHeight": 101,
+        "offsetX": 327,
+        "offsetY": 107,
+        "territories": [
+            {
+                "id": "69866259-044e-4dc7-96ec-e3144bdbcd26",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 840,
+                "cx": 16,
+                "cy": 53
+            },
+            {
+                "id": "c6b85440-6971-4981-a7f3-a1a159feb6e4",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 445,
+                "cx": 37,
+                "cy": 12
+            },
+            {
+                "id": "87483322-526d-4f3f-9ef9-3e53852cdb8e",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 786,
+                "cx": 48,
+                "cy": 61
+            },
+            {
+                "id": "9bd5cef8-b946-46c9-b4f8-cd7a40df67d5",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 902,
+                "cx": 21,
+                "cy": 81
+            },
+            {
+                "id": "d1cef670-9b25-40a8-aec5-139a4f9bf138",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 779,
+                "cx": 40,
+                "cy": 36
+            }
+        ],
+        "region_id": "86839265-f71f-4073-bff3-cbef4be587fd"
+    },
+    {
+        "name": "tirannwn",
+        "filename": "tirannwn.png",
+        "label_filename": "tirannwn_labels.png",
+        "imageWidth": 47,
+        "imageHeight": 73,
+        "offsetX": 157,
+        "offsetY": 83,
+        "territories": [
+            {
+                "id": "ae99713b-ccc1-479d-8ab9-923ceb256bb8",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 508,
+                "cx": 33,
+                "cy": 36
+            },
+            {
+                "id": "55c93971-0dd2-49d6-b13b-1dc0cd7266ed",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 364,
+                "cx": 25,
+                "cy": 12
+            },
+            {
+                "id": "6449407a-a4d2-42a4-9bdf-4e0863979242",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 449,
+                "cx": 11,
+                "cy": 52
+            },
+            {
+                "id": "cd599563-60b0-416b-a454-3d7bdd6c2ea5",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 393,
+                "cx": 14,
+                "cy": 23
+            },
+            {
+                "id": "9cc2e6df-9813-408b-8aff-e830aaa96fad",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 385,
+                "cx": 26,
+                "cy": 57
+            }
+        ],
+        "region_id": "a1da66f8-e845-4892-a8fd-27896ac7cba5"
+    },
+    {
+        "name": "morytania",
+        "filename": "morytania.png",
+        "label_filename": "morytania_labels.png",
+        "imageWidth": 85,
+        "imageHeight": 130,
+        "offsetX": 374,
+        "offsetY": 61,
+        "territories": [
+            {
+                "id": "094ed327-b03a-40ac-b4b5-b4f9542b0aff",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 1394,
+                "cx": 28,
+                "cy": 49
+            },
+            {
+                "id": "04c2447f-4ce4-41c6-b879-86373ee51d71",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 1318,
+                "cx": 22,
+                "cy": 20
+            },
+            {
+                "id": "c5f10fb0-a352-4721-b142-73747fe3b77a",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 536,
+                "cx": 49,
+                "cy": 91
+            },
+            {
+                "id": "155b1cab-c283-4512-a996-184faf452731",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 321,
+                "cx": 64,
+                "cy": 119
+            },
+            {
+                "id": "c1c623ce-c596-45ca-b1c2-703e76514431",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 186,
+                "cx": 75,
+                "cy": 12
+            }
+        ],
+        "region_id": "d95393b5-eaf0-4ed4-abf7-e611e9fff560"
+    },
+    {
+        "name": "kourend",
+        "filename": "kourend.png",
+        "label_filename": "kourend_labels.png",
+        "imageWidth": 127,
+        "imageHeight": 114,
+        "offsetX": 10,
+        "offsetY": 1,
+        "territories": [
+            {
+                "id": "13fb249b-79ee-4897-8fe0-41d7bd63750c",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 2652,
+                "cx": 27,
+                "cy": 72
+            },
+            {
+                "id": "ca9c49f9-6fd9-4074-bd98-d7e13dd7f8be",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 2007,
+                "cx": 99,
+                "cy": 33
+            },
+            {
+                "id": "939417b8-c879-45f6-8fe7-35aa5d92e1f0",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 2689,
+                "cx": 86,
+                "cy": 84
+            },
+            {
+                "id": "e76280b5-b905-4c0c-852e-220ef2df02fa",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 2153,
+                "cx": 60,
+                "cy": 34
+            },
+            {
+                "id": "38b129ad-c5f3-44cf-8bef-4f92c0832f38",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 28,
+                "cx": 36,
+                "cy": 69
+            }
+        ],
+        "region_id": "b2740043-79da-4375-ae6a-479db0c61870"
+    },
+    {
+        "name": "varlamore",
+        "filename": "varlamore.png",
+        "label_filename": "varlamore_labels.png",
+        "imageWidth": 127,
+        "imageHeight": 114,
+        "offsetX": 0,
+        "offsetY": 93,
+        "territories": [
+            {
+                "id": "c9d30e57-f7ce-444d-ab1b-ba9bbedc82a3",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 1530,
+                "cx": 38,
+                "cy": 64
+            },
+            {
+                "id": "fb473d1c-f3ce-4314-895e-1dafef86305c",
+                "index": 2,
+                "name": "Territory 2",
+                "size": 1905,
+                "cx": 99,
+                "cy": 78
+            },
+            {
+                "id": "848f77dc-b98d-4cc0-a4b8-98b9af597aa6",
+                "index": 3,
+                "name": "Territory 3",
+                "size": 1736,
+                "cx": 75,
+                "cy": 46
+            },
+            {
+                "id": "a820f15b-9f11-45f9-ace8-e666b56eeaf0",
+                "index": 4,
+                "name": "Territory 4",
+                "size": 1617,
+                "cx": 27,
+                "cy": 23
+            },
+            {
+                "id": "468dbdb5-3448-41cf-badf-fb251143a57a",
+                "index": 5,
+                "name": "Territory 5",
+                "size": 641,
+                "cx": 53,
+                "cy": 99
+            }
+        ],
+        "region_id": "a328147f-7eaa-4ba4-b39e-d76ca13dcc58"
+    },
+    {
+        "name": "wilderness",
+        "filename": "wilderness.png",
+        "label_filename": "wilderness_labels.png",
+        "imageWidth": 68,
+        "imageHeight": 74,
+        "offsetX": 308,
+        "offsetY": 0,
+        "territories": [
+            {
+                "id": "12018118-34ab-4466-913e-6e206ed3ea54",
+                "index": 1,
+                "name": "Territory 1",
+                "size": 3621,
+                "cx": 33,
+                "cy": 38
+            }
+        ],
+        "region_id": "a1f0fc29-0c53-4e96-9c2d-e250531ca9d0"
+    }
+]
