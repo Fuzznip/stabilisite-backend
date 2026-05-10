@@ -121,4 +121,6 @@ class EventHandler:
                     notifications.append(notif.to_dict())
             except Exception as e:
                 logging.error(f"Error in handler {handler.__name__}: {e}", exc_info=True)
+                from app import db
+                db.session.rollback()
         return {"notifications": notifications}
