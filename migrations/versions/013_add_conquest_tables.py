@@ -17,6 +17,9 @@ depends_on = None
 
 
 def upgrade():
+    # Add color to teams
+    op.add_column('teams', sa.Column('color', sa.String(7), nullable=True), schema='new_stability')
+
     # Add type to events
     op.add_column('events', sa.Column('type', sa.String(50), nullable=True), schema='new_stability')
 
@@ -84,6 +87,7 @@ def upgrade():
 
 
 def downgrade():
+    op.drop_column('teams', 'color', schema='new_stability')
     op.drop_table('event_logs', schema='new_stability')
     op.drop_table('territories', schema='new_stability')
     op.drop_table('regions', schema='new_stability')

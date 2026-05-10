@@ -47,7 +47,8 @@ class Team(db.Model, Serializer):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.events.id', ondelete='CASCADE'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    image_url = db.Column(db.String(512))  # Team image/icon URL
+    image_url = db.Column(db.String(512))
+    color = db.Column(db.String(7), nullable=True)
     points = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))

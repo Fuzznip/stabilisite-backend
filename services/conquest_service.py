@@ -5,10 +5,9 @@ import logging
 from sqlalchemy import text
 
 CONQUEST_SCORING = {
-    "TERRITORY_OWNED": 10,
-    "REGION_OWNED": 50,
+    "TERRITORY_OWNED": 3,
+    "REGION_OWNED": 20,
     "TASK_COMPLETION": 1,
-    "GREEN_LOG_BONUS": 15,
 }
 
 # event_id (str) -> set of SimpleQueue instances, one per connected SSE client
@@ -201,19 +200,13 @@ def recalculate_team_points(team_id, event_id, session) -> int:
                 JOIN new_stability.regions r ON r.id = t.region_id
                 WHERE r.event_id = :event_id AND cs.team_id = :team_id
                 AND cs.quantity >= c.quantity
-            ) AS challenges_completed,
-            (
-                SELECT COUNT(*)
-                FROM new_stability.regions
-                WHERE event_id = :event_id AND CAST(:team_id AS uuid) = ANY(green_logged_teams)
-            ) AS green_logs
+            ) AS challenges_completed
     """), {"team_id": str(team_id), "event_id": str(event_id)}).fetchone()
 
     points = (
         int(result.territories_controlled) * CONQUEST_SCORING["TERRITORY_OWNED"] +
         int(result.regions_controlled) * CONQUEST_SCORING["REGION_OWNED"] +
-        int(result.challenges_completed) * CONQUEST_SCORING["TASK_COMPLETION"] +
-        int(result.green_logs) * CONQUEST_SCORING["GREEN_LOG_BONUS"]
+        int(result.challenges_completed) * CONQUEST_SCORING["TASK_COMPLETION"]
     )
 
     session.execute(text("""
