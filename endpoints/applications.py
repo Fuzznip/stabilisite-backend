@@ -249,7 +249,7 @@ def create_application_diary():
             task_time_seconds = parse_time_to_seconds(task.diary_time)
 
             # Compare times in seconds
-            if data_time_seconds < task_time_seconds:
+            if data_time_seconds <= task_time_seconds:
                 if fastest_time is None or task_time_seconds < fastest_time:
                     fastest_time = task_time_seconds
                     succeeded_task = task
