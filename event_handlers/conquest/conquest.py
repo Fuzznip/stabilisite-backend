@@ -175,7 +175,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
             type='CHALLENGE_COMPLETED',
             entity_type='challenge',
             entity_id=challenge.id,
-            meta={'completionCount': new_completions, 'challengeName': trigger.name, 'unique': old_completions == 0},
+            meta={'completionCount': new_completions, 'challengeName': trigger.name, 'unique': old_completions == 0, 'playerName': submission.rsn},
         )
         db.session.add(log)
         db.session.flush()
@@ -193,7 +193,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
                 type='TERRITORY_CONTROL',
                 entity_type='territory',
                 entity_id=territory.id,
-                meta={'previousTeamId': str(prev_team_id) if prev_team_id else None},
+                meta={'previousTeamId': str(prev_team_id) if prev_team_id else None, 'playerName': submission.rsn},
             )
             db.session.add(territory_log)
             db.session.flush()
@@ -211,7 +211,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
                     type='REGION_CONTROL',
                     entity_type='region',
                     entity_id=region.id,
-                    meta={'previousTeamId': str(prev_region_team_id) if prev_region_team_id else None},
+                    meta={'previousTeamId': str(prev_region_team_id) if prev_region_team_id else None, 'playerName': submission.rsn},
                 )
                 db.session.add(region_log)
                 db.session.flush()
@@ -224,7 +224,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
                 type='GREEN_LOG',
                 entity_type='region',
                 entity_id=region.id,
-                meta={},
+                meta={'playerName': submission.rsn},
             )
             db.session.add(green_log)
             db.session.flush()
