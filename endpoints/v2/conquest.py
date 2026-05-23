@@ -269,31 +269,29 @@ def get_event_player_actions(event_id):
     # per-player, per-action aggregates. GROUP BY is done in the database.
     rows = db.session.execute(text("""
         SELECT
-            t.id            AS team_id,
-            u.runescape_name AS player_name,
-            a.name          AS action_name,
-            a.source        AS action_source,
-            SUM(a.quantity) AS total_quantity
+            t.id              AS team_id,
+            u.runescape_name  AS player_name,
+            a.name            AS action_name,
+            a.source          AS action_source,
+            MAX(tr.img_path)  AS trigger_img,
+            SUM(a.quantity)   AS total_quantity
         FROM new_stability.teams t
-        JOIN new_stability.challenge_statuses cs ON cs.team_id = t.id
-        JOIN new_stability.challenge_proofs   cp ON cp.challenge_status_id = cs.id
+        JOIN new_stability.challenge_statuses cs  ON cs.team_id = t.id
+        JOIN new_stability.challenge_proofs   cp  ON cp.challenge_status_id = cs.id
         JOIN new_stability.actions             a  ON a.id = cp.action_id
         JOIN users                             u  ON u.id = a.player_id
         JOIN new_stability.challenges          ch ON ch.id = cs.challenge_id
+        LEFT JOIN new_stability.triggers       tr ON tr.id = ch.trigger_id
         JOIN new_stability.territories        ter ON ter.challenge_id = ch.id
         JOIN new_stability.regions              r ON r.id = ter.region_id
-        WHERE t.event_id  = :event_id
-          AND r.event_id  = :event_id
+        WHERE t.event_id = :event_id
+          AND r.event_id = :event_id
         GROUP BY t.id, u.runescape_name, a.name, a.source
         ORDER BY u.runescape_name, total_quantity DESC
     """), {'event_id': event_id}).fetchall()
 
-    # Fetch teams separately (cheap — small table) so we include teams with
-    # zero activity and have color/image metadata.
     teams = Team.query.filter_by(event_id=event_id).all()
-    teams_by_id = {str(t.id): t for t in teams}
 
-    # Group rows: team_id -> player_name -> [actions]
     team_player_actions: dict = {}
     for row in rows:
         tid = str(row.team_id)
@@ -302,6 +300,7 @@ def get_event_player_actions(event_id):
         team_player_actions[tid][row.player_name].append({
             'name': row.action_name,
             'source': row.action_source,
+            'img_path': row.trigger_img,
             'quantity': int(row.total_quantity),
         })
 
