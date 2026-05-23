@@ -4,6 +4,7 @@ import queue
 
 from app import app, db
 from flask import Response, jsonify, request, stream_with_context
+from sqlalchemy import text
 from helper.helpers import ModelEncoder
 from models.models import Users
 from models.new_events import Action, Challenge, ChallengeProof, ChallengeStatus, Event, EventLog, Region, Team, Territory
@@ -250,6 +251,75 @@ def get_territory_proofs(territory_id):
                         'runescape_name': player.runescape_name,
                     }
             data.append(proof_dict)
+
+    return jsonify({'data': data}), 200
+
+
+# ---------------------------------------------------------------------------
+# Player Actions
+# ---------------------------------------------------------------------------
+
+@app.route('/v2/events/<event_id>/player-actions', methods=['GET'])
+def get_event_player_actions(event_id):
+    event, err = _require_conquest_event(event_id)
+    if err:
+        return err
+
+    # Single query: join through the event's territory challenges to get
+    # per-player, per-action aggregates. GROUP BY is done in the database.
+    rows = db.session.execute(text("""
+        SELECT
+            t.id            AS team_id,
+            u.runescape_name AS player_name,
+            a.name          AS action_name,
+            a.source        AS action_source,
+            SUM(a.quantity) AS total_quantity
+        FROM new_stability.teams t
+        JOIN new_stability.challenge_statuses cs ON cs.team_id = t.id
+        JOIN new_stability.challenge_proofs   cp ON cp.challenge_status_id = cs.id
+        JOIN new_stability.actions             a  ON a.id = cp.action_id
+        JOIN users                             u  ON u.id = a.player_id
+        JOIN new_stability.challenges          ch ON ch.id = cs.challenge_id
+        JOIN new_stability.territories        ter ON ter.challenge_id = ch.id
+        JOIN new_stability.regions              r ON r.id = ter.region_id
+        WHERE t.event_id  = :event_id
+          AND r.event_id  = :event_id
+        GROUP BY t.id, u.runescape_name, a.name, a.source
+        ORDER BY u.runescape_name, total_quantity DESC
+    """), {'event_id': event_id}).fetchall()
+
+    # Fetch teams separately (cheap — small table) so we include teams with
+    # zero activity and have color/image metadata.
+    teams = Team.query.filter_by(event_id=event_id).all()
+    teams_by_id = {str(t.id): t for t in teams}
+
+    # Group rows: team_id -> player_name -> [actions]
+    team_player_actions: dict = {}
+    for row in rows:
+        tid = str(row.team_id)
+        team_player_actions.setdefault(tid, {})
+        team_player_actions[tid].setdefault(row.player_name, [])
+        team_player_actions[tid][row.player_name].append({
+            'name': row.action_name,
+            'source': row.action_source,
+            'quantity': int(row.total_quantity),
+        })
+
+    data = []
+    for team in teams:
+        tid = str(team.id)
+        players_raw = team_player_actions.get(tid, {})
+        players_list = sorted([
+            {'player_name': pname, 'actions': actions}
+            for pname, actions in players_raw.items()
+        ], key=lambda p: p['player_name'])
+        data.append({
+            'team_id': tid,
+            'team_name': team.name,
+            'team_color': team.color,
+            'team_image_url': team.image_url,
+            'players': players_list,
+        })
 
     return jsonify({'data': data}), 200
 
