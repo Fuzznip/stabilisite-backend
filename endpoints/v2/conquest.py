@@ -265,29 +265,45 @@ def get_event_player_actions(event_id):
     if err:
         return err
 
-    # Single query: join through the event's territory challenges to get
-    # per-player, per-action aggregates. GROUP BY is done in the database.
+    # Start from team_members so players with no drops still appear.
+    # LEFT JOIN to action aggregates so they show up with an empty actions list.
     rows = db.session.execute(text("""
+        WITH action_agg AS (
+            SELECT
+                t.id              AS team_id,
+                u.runescape_name  AS player_name,
+                a.name            AS action_name,
+                a.source          AS action_source,
+                MAX(tr.img_path)  AS trigger_img,
+                SUM(a.quantity)   AS total_quantity
+            FROM new_stability.teams t
+            JOIN new_stability.challenge_statuses cs  ON cs.team_id = t.id
+            JOIN new_stability.challenge_proofs   cp  ON cp.challenge_status_id = cs.id
+            JOIN new_stability.actions             a  ON a.id = cp.action_id
+            JOIN users                             u  ON u.id = a.player_id
+            JOIN new_stability.challenges          ch ON ch.id = cs.challenge_id
+            LEFT JOIN new_stability.triggers       tr ON tr.id = ch.trigger_id
+            JOIN new_stability.territories        ter ON ter.challenge_id = ch.id
+            JOIN new_stability.regions              r ON r.id = ter.region_id
+            WHERE t.event_id = :event_id
+              AND r.event_id = :event_id
+            GROUP BY t.id, u.runescape_name, a.name, a.source
+        )
         SELECT
-            t.id              AS team_id,
+            tm.team_id,
             u.runescape_name  AS player_name,
-            a.name            AS action_name,
-            a.source          AS action_source,
-            MAX(tr.img_path)  AS trigger_img,
-            SUM(a.quantity)   AS total_quantity
-        FROM new_stability.teams t
-        JOIN new_stability.challenge_statuses cs  ON cs.team_id = t.id
-        JOIN new_stability.challenge_proofs   cp  ON cp.challenge_status_id = cs.id
-        JOIN new_stability.actions             a  ON a.id = cp.action_id
-        JOIN users                             u  ON u.id = a.player_id
-        JOIN new_stability.challenges          ch ON ch.id = cs.challenge_id
-        LEFT JOIN new_stability.triggers       tr ON tr.id = ch.trigger_id
-        JOIN new_stability.territories        ter ON ter.challenge_id = ch.id
-        JOIN new_stability.regions              r ON r.id = ter.region_id
+            aa.action_name,
+            aa.action_source,
+            aa.trigger_img,
+            aa.total_quantity
+        FROM new_stability.team_members tm
+        JOIN new_stability.teams t ON t.id = tm.team_id
+        JOIN users u ON u.id = tm.user_id
+        LEFT JOIN action_agg aa
+               ON aa.team_id = tm.team_id
+              AND aa.player_name = u.runescape_name
         WHERE t.event_id = :event_id
-          AND r.event_id = :event_id
-        GROUP BY t.id, u.runescape_name, a.name, a.source
-        ORDER BY u.runescape_name, total_quantity DESC
+        ORDER BY u.runescape_name, aa.total_quantity DESC NULLS LAST
     """), {'event_id': event_id}).fetchall()
 
     teams = Team.query.filter_by(event_id=event_id).all()
@@ -296,13 +312,16 @@ def get_event_player_actions(event_id):
     for row in rows:
         tid = str(row.team_id)
         team_player_actions.setdefault(tid, {})
-        team_player_actions[tid].setdefault(row.player_name, [])
-        team_player_actions[tid][row.player_name].append({
-            'name': row.action_name,
-            'source': row.action_source,
-            'img_path': row.trigger_img,
-            'quantity': int(row.total_quantity),
-        })
+        # Ensure the player key exists even if they have no actions
+        if row.player_name not in team_player_actions[tid]:
+            team_player_actions[tid][row.player_name] = []
+        if row.action_name is not None:
+            team_player_actions[tid][row.player_name].append({
+                'name': row.action_name,
+                'source': row.action_source,
+                'img_path': row.trigger_img,
+                'quantity': int(row.total_quantity),
+            })
 
     data = []
     for team in teams:
