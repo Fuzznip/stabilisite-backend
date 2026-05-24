@@ -22,12 +22,8 @@ from sqlalchemy import func, text
 
 
 def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
-    logging.info(
-        f"[CONQUEST] submission: rsn={submission.rsn}, trigger={submission.trigger!r}, "
-        f"source={submission.source!r}, type={submission.type}, qty={submission.quantity}"
-    )
-
     now = datetime.now(timezone.utc)
+
     event = Event.query.filter(
         Event.start_date <= now,
         Event.end_date >= now,
@@ -35,7 +31,10 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
     ).first()
 
     if not event:
+        logging.info("[CONQUEST] No active event, skipping")
         return []
+
+    logging.info(f"[CONQUEST] Matched — event={event.name!r} ({event.id})")
 
     # Resolve user: try rsn → discord_id → alt_names
     user = None
@@ -61,7 +60,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
             logging.warning(f"[CONQUEST] duplicate request_id={submission.request_id!r}, skipping")
             return []
 
-    # Record action first (always, regardless of team membership)
+    # Record action
     action = Action(
         player_id=user.id,
         type=submission.type,
@@ -93,7 +92,6 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
     region_by_id = {r.id: r for r in regions}
 
     territories = Territory.query.filter(Territory.region_id.in_(region_ids)).all() if region_ids else []
-    territory_by_id = {t.id: t for t in territories}
     territory_by_challenge_id = {t.challenge_id: t for t in territories if t.challenge_id}
 
     challenge_ids = list(territory_by_challenge_id.keys())
@@ -102,7 +100,6 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
     triggers = Trigger.query.filter(Trigger.id.in_(trigger_ids)).all() if trigger_ids else []
     triggers_by_id = {t.id: t for t in triggers}
 
-    # Normalize submission for matching
     submission_trigger_lower = submission.trigger.lower()
     submission_source_lower = submission.source.lower() if submission.source else ""
 
