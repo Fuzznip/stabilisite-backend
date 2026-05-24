@@ -1,7 +1,7 @@
 from app import app
 from helper.helpers import ModelEncoder
 from models.models import Events, EventTriggers, EventTriggerMappings
-from models.new_events import Event as NewEvent, Trigger as NewTrigger, Challenge, Task, Tile
+from models.new_events import Event as NewEvent, Trigger as NewTrigger, Challenge, Task, Tile, Territory, Region
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -46,9 +46,10 @@ def get_item_whitelist():
 
     # New event schema triggers
     if new_events:
-        print(f"{new_events}")
         new_event_ids = [event.id for event in new_events]
-        new_triggers = (
+
+        # Bingo path: Trigger → Challenge → Task → Tile
+        bingo_triggers = (
             NewTrigger.query
             .join(Challenge, Challenge.trigger_id == NewTrigger.id)
             .join(Task, Task.id == Challenge.task_id)
@@ -57,13 +58,23 @@ def get_item_whitelist():
             .all()
         )
 
-        for trigger in new_triggers:
+        # Conquest path: Trigger → Challenge → Territory → Region
+        conquest_triggers = (
+            NewTrigger.query
+            .join(Challenge, Challenge.trigger_id == NewTrigger.id)
+            .join(Territory, Territory.challenge_id == Challenge.id)
+            .join(Region, Region.id == Territory.region_id)
+            .filter(Region.event_id.in_(new_event_ids))
+            .all()
+        )
+
+        for trigger in bingo_triggers + conquest_triggers:
             if trigger.type == "DROP":
                 triggerSet.add(f"{trigger.name}:{trigger.source}" if trigger.source else f"{trigger.name}")
             elif trigger.type == "KC":
                 killCountTriggerSet.add(trigger.name)
             elif trigger.type == "CHAT":
-               messageFilterSet.add(f"{trigger.name}:{trigger.source}")
+                messageFilterSet.add(f"{trigger.name}:{trigger.source}")
             else:
                 logging.warning(f"Unknown trigger type (new schema): {trigger.type}")
 
