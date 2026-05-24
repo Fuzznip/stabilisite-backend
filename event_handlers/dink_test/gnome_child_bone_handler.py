@@ -1,8 +1,10 @@
+import logging
+import random
+
 from app import db
 from event_handlers.event_handler import EventSubmission, NotificationResponse, NotificationAuthor
 from models.models import Events
 from helper.jsonb import update_jsonb_field
-import random
 
 description_phrases = [
     "Guys, I think dink is working.",
@@ -18,10 +20,20 @@ description_phrases = [
 ]
 
 def gnome_child_bone_handler(submission: EventSubmission) -> list[NotificationResponse]:
-    # Grab the 'Dink Testing' event
-    event = Events.query.filter(Events.type=="DINK_TEST").first()
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    event = Events.query.filter(
+        Events.type == "DINK_TEST",
+        Events.start_time <= now,
+        Events.end_time >= now,
+    ).first()
 
-    # Example logic for handling the event
+    if not event:
+        logging.info("[GNOME_CHILD] No active event, skipping")
+        return []
+
+    logging.info(f"[GNOME_CHILD] Matched — event={event.name!r} ({event.id})")
+
     if submission.trigger.lower() == "bones" and submission.source.lower() == "gnome child":
         # Use the helper function to modify event.data
         update_jsonb_field(event, "data", lambda data: data.update({"kills": data.get("kills", 0) + 1}))
@@ -36,4 +48,4 @@ def gnome_child_bone_handler(submission: EventSubmission) -> list[NotificationRe
             author=NotificationAuthor(name=f"{submission.rsn}"),
             description=random.choice(description_phrases)
         )]
-    return None
+    return []

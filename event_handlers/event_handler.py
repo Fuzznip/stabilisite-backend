@@ -110,13 +110,17 @@ class EventHandler:
 
     @classmethod
     def handle_event(cls, data: EventSubmission):
+        logging.info(
+            f"[DISPATCH] rsn={data.rsn!r}, trigger={data.trigger!r}, "
+            f"source={data.source!r}, type={data.type}"
+        )
         notifications: list[NotificationResponse] = []
         for handler in cls.handlers:
             try:
                 responses: list[NotificationResponse] = handler(data)
                 if not responses:
                     continue
-                
+
                 for notif in responses:
                     notifications.append(notif.to_dict())
             except Exception as e:

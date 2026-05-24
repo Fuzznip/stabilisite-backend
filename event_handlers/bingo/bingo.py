@@ -384,18 +384,18 @@ def check_bingos_for_completed_tiles(completed_tile_indices: list[int], team: Te
 
 def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
     """Main handler for bingo event submissions"""
-    logging.info(f"[BINGO] Received submission: rsn={submission.rsn}, discord_id={submission.id}, trigger={submission.trigger!r}, source={submission.source!r}, type={submission.type}, quantity={submission.quantity}")
-
-    # Find active bingo event
     now = datetime.now(timezone.utc)
     event = Event.query.filter(
         Event.start_date <= now,
-        Event.end_date >= now
+        Event.end_date >= now,
+        Event.type == 'bingo',
     ).first()
 
     if not event:
-        logging.info("No active Bingo event found.")
+        logging.info("[BINGO] No active event, skipping")
         return []
+
+    logging.info(f"[BINGO] Matched — event={event.name!r} ({event.id})")
 
     # Look up user by runescape_name, discord_id, then alt_names (cheapest to most expensive)
     user = None
