@@ -38,7 +38,12 @@ def get_challenge(id):
     # Enrich with children if it's a parent challenge
     challenge_data = challenge.serialize()
     if challenge.children:
-        challenge_data['children'] = [child.serialize() for child in challenge.children]
+        def serialize_child(child):
+            data = child.serialize()
+            if child.trigger:
+                data['trigger'] = child.trigger.serialize()
+            return data
+        challenge_data['children'] = [serialize_child(child) for child in challenge.children]
 
     return json.dumps(challenge_data, cls=ModelEncoder), 200
 
