@@ -32,16 +32,25 @@ def update_territory_control(territory_id, session) -> dict:
     """
     rows = session.execute(text("""
         SELECT
-            t.id                                                              AS team_id,
+            t.id                                                               AS team_id,
             terr.controlling_team_id,
-            FLOOR(COALESCE(cs.quantity, 0)::numeric / c.quantity)            AS completions
+            COALESCE(SUM(FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)), 0) AS completions
         FROM new_stability.territories terr
         JOIN new_stability.regions r ON r.id = terr.region_id
         JOIN new_stability.teams t ON t.event_id = r.event_id
-        JOIN new_stability.challenges c ON c.id = terr.challenge_id
+        JOIN new_stability.challenges leaf
+            ON leaf.trigger_id IS NOT NULL AND (
+                leaf.id = terr.challenge_id
+                OR leaf.parent_challenge_id = terr.challenge_id
+                OR leaf.parent_challenge_id IN (
+                    SELECT id FROM new_stability.challenges
+                    WHERE parent_challenge_id = terr.challenge_id
+                )
+            )
         LEFT JOIN new_stability.challenge_statuses cs
-            ON cs.challenge_id = terr.challenge_id AND cs.team_id = t.id
+            ON cs.challenge_id = leaf.id AND cs.team_id = t.id
         WHERE terr.id = :territory_id
+        GROUP BY t.id, terr.controlling_team_id
         ORDER BY completions DESC
     """), {"territory_id": str(territory_id)}).fetchall()
 
@@ -150,15 +159,29 @@ def check_green_log(team_id, region_id, session) -> bool:
 
     result = session.execute(text("""
         SELECT
-            COUNT(DISTINCT t.id)                                                                  AS total,
-            COUNT(DISTINCT t.id) FILTER (
-                WHERE FLOOR(COALESCE(cs.quantity, 0)::numeric / c.quantity) >= 1
-            )                                                                                     AS completed
-        FROM new_stability.territories t
-        JOIN new_stability.challenges c ON c.id = t.challenge_id
-        LEFT JOIN new_stability.challenge_statuses cs
-            ON cs.challenge_id = t.challenge_id AND cs.team_id = :team_id
-        WHERE t.region_id = :region_id AND t.challenge_id IS NOT NULL
+            COUNT(DISTINCT terr.id)                                                          AS total,
+            COUNT(DISTINCT terr.id) FILTER (WHERE COALESCE(per_terr.leaf_completions, 0) >= 1) AS completed
+        FROM new_stability.territories terr
+        LEFT JOIN (
+            SELECT
+                terr2.id AS territory_id,
+                SUM(FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)) AS leaf_completions
+            FROM new_stability.territories terr2
+            JOIN new_stability.challenges leaf
+                ON leaf.trigger_id IS NOT NULL AND (
+                    leaf.id = terr2.challenge_id
+                    OR leaf.parent_challenge_id = terr2.challenge_id
+                    OR leaf.parent_challenge_id IN (
+                        SELECT id FROM new_stability.challenges
+                        WHERE parent_challenge_id = terr2.challenge_id
+                    )
+                )
+            LEFT JOIN new_stability.challenge_statuses cs
+                ON cs.challenge_id = leaf.id AND cs.team_id = :team_id
+            WHERE terr2.region_id = :region_id AND terr2.challenge_id IS NOT NULL
+            GROUP BY terr2.id
+        ) per_terr ON per_terr.territory_id = terr.id
+        WHERE terr.region_id = :region_id AND terr.challenge_id IS NOT NULL
     """), {"team_id": str(team_id), "region_id": str(region_id)}).fetchone()
 
     if not result or int(result.total) == 0 or result.total != result.completed:
