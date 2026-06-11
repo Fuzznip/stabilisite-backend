@@ -46,6 +46,8 @@ def get_challenge(id):
             data = child.serialize()
             if child.trigger:
                 data['trigger'] = child.trigger.serialize()
+            if child.children:
+                data['children'] = [serialize_child(grandchild) for grandchild in child.children]
             return data
         challenge_data['children'] = [serialize_child(child) for child in challenge.children]
 
