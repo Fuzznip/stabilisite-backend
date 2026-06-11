@@ -72,7 +72,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
         request_id=submission.request_id,
     )
     db.session.add(action)
-    db.session.commit()
+    db.session.flush()
 
     # Resolve team membership
     team_member = TeamMember.query.join(Team).filter(
@@ -94,9 +94,34 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
     territories = Territory.query.filter(Territory.region_id.in_(region_ids)).all() if region_ids else []
     territory_by_challenge_id = {t.challenge_id: t for t in territories if t.challenge_id}
 
-    challenge_ids = list(territory_by_challenge_id.keys())
-    challenges = Challenge.query.filter(Challenge.id.in_(challenge_ids)).all() if challenge_ids else []
-    trigger_ids = list({c.trigger_id for c in challenges if c.trigger_id})
+    # Load root challenges, then children and grandchildren to support OR groups
+    root_ids = list(territory_by_challenge_id.keys())
+    root_challenges = Challenge.query.filter(Challenge.id.in_(root_ids)).all() if root_ids else []
+
+    children = Challenge.query.filter(
+        Challenge.parent_challenge_id.in_(root_ids)
+    ).all() if root_ids else []
+
+    child_ids = [c.id for c in children]
+    grandchildren = Challenge.query.filter(
+        Challenge.parent_challenge_id.in_(child_ids)
+    ).all() if child_ids else []
+
+    # Map every challenge id back to its root (territory-level) challenge id
+    challenge_to_root: dict = {}
+    for c in root_challenges:
+        challenge_to_root[c.id] = c.id
+    for c in children:
+        challenge_to_root[c.id] = c.parent_challenge_id
+    for c in grandchildren:
+        challenge_to_root[c.id] = challenge_to_root.get(c.parent_challenge_id, c.parent_challenge_id)
+
+    # Only leaf challenges (those with a trigger_id) are matched against submissions
+    leaf_challenges = [
+        c for c in root_challenges + children + grandchildren if c.trigger_id
+    ]
+
+    trigger_ids = list({c.trigger_id for c in leaf_challenges})
     triggers = Trigger.query.filter(Trigger.id.in_(trigger_ids)).all() if trigger_ids else []
     triggers_by_id = {t.id: t for t in triggers}
 
@@ -105,10 +130,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
 
     new_log_entries: list[EventLog] = []
 
-    for challenge in challenges:
-        if not challenge.trigger_id:
-            continue
-
+    for challenge in leaf_challenges:
         trigger = triggers_by_id.get(challenge.trigger_id)
         if not trigger:
             continue
@@ -163,7 +185,8 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
             continue
 
         # New completion threshold crossed — run conquest logic
-        territory = territory_by_challenge_id[challenge.id]
+        root_challenge_id = challenge_to_root[challenge.id]
+        territory = territory_by_challenge_id[root_challenge_id]
         region = region_by_id[territory.region_id]
 
         log = EventLog(
@@ -227,10 +250,11 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
             db.session.flush()
             new_log_entries.append(green_log)
 
-    # Recalculate points for every team in the event
-    all_teams = Team.query.filter_by(event_id=event.id).all()
-    for t in all_teams:
-        recalculate_team_points(t.id, event.id, db.session)
+    # Only recalculate points when territory/region control actually changed
+    if any(e.type in ('TERRITORY_CONTROL', 'REGION_CONTROL') for e in new_log_entries):
+        all_teams = Team.query.filter_by(event_id=event.id).all()
+        for t in all_teams:
+            recalculate_team_points(t.id, event.id, db.session)
 
     db.session.commit()
 

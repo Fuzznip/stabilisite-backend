@@ -37,6 +37,10 @@ def get_challenge(id):
 
     # Enrich with children if it's a parent challenge
     challenge_data = challenge.serialize()
+    if challenge.task:
+        challenge_data['task'] = {'id': str(challenge.task.id), 'name': challenge.task.name}
+    if challenge.trigger:
+        challenge_data['trigger'] = challenge.trigger.serialize()
     if challenge.children:
         def serialize_child(child):
             data = child.serialize()
