@@ -194,7 +194,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
             team_id=team.id,
             type='CHALLENGE_COMPLETED',
             entity_type='challenge',
-            entity_id=challenge.id,
+            entity_id=root_challenge_id,
             meta={'completionCount': new_completions, 'challengeName': trigger.name, 'unique': old_completions == 0, 'playerName': submission.rsn},
         )
         db.session.add(log)
