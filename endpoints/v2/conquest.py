@@ -160,24 +160,42 @@ def get_territory_progress(territory_id):
     if not territory.challenge_id:
         return jsonify({'data': []}), 200
 
-    challenge = Challenge.query.get(territory.challenge_id)
+    root_id = str(territory.challenge_id)
+    root_challenge = Challenge.query.get(territory.challenge_id)
     teams = Team.query.filter_by(event_id=region.event_id).all()
 
-    statuses_by_team = {
-        cs.team_id: cs
-        for cs in ChallengeStatus.query.filter_by(challenge_id=territory.challenge_id).all()
-    }
+    rows = db.session.execute(text("""
+        SELECT
+            t.id AS team_id,
+            COALESCE(SUM(COALESCE(cs.quantity, 0)), 0) AS total_quantity,
+            COALESCE(SUM(FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)), 0) AS completions
+        FROM new_stability.teams t
+        JOIN new_stability.challenges leaf
+            ON leaf.trigger_id IS NOT NULL AND (
+                leaf.id = :root_id
+                OR leaf.parent_challenge_id = :root_id
+                OR leaf.parent_challenge_id IN (
+                    SELECT id FROM new_stability.challenges
+                    WHERE parent_challenge_id = :root_id
+                )
+            )
+        LEFT JOIN new_stability.challenge_statuses cs
+            ON cs.challenge_id = leaf.id AND cs.team_id = t.id
+        WHERE t.event_id = :event_id
+        GROUP BY t.id
+    """), {"root_id": root_id, "event_id": str(region.event_id)}).fetchall()
+
+    by_team = {str(r.team_id): r for r in rows}
 
     data = []
     for team in teams:
-        cs = statuses_by_team.get(team.id)
-        quantity = cs.quantity if cs else 0
+        r = by_team.get(str(team.id))
         data.append({
             'team_id': str(team.id),
             'team_name': team.name,
-            'quantity': quantity,
-            'required': challenge.quantity,
-            'completions': quantity // challenge.quantity,
+            'quantity': int(r.total_quantity) if r else 0,
+            'required': root_challenge.quantity,
+            'completions': int(r.completions) if r else 0,
         })
 
     return jsonify({'data': data}), 200
@@ -199,7 +217,22 @@ def get_territory_proofs(territory_id):
 
     team_id = request.args.get('team_id')
 
-    query = ChallengeStatus.query.filter_by(challenge_id=territory.challenge_id)
+    root_id = str(territory.challenge_id)
+    leaf_ids = [
+        r.id for r in db.session.execute(text("""
+            SELECT id FROM new_stability.challenges
+            WHERE trigger_id IS NOT NULL AND (
+                id = :root_id
+                OR parent_challenge_id = :root_id
+                OR parent_challenge_id IN (
+                    SELECT id FROM new_stability.challenges
+                    WHERE parent_challenge_id = :root_id
+                )
+            )
+        """), {"root_id": root_id}).fetchall()
+    ]
+
+    query = ChallengeStatus.query.filter(ChallengeStatus.challenge_id.in_(leaf_ids))
     if team_id:
         query = query.filter_by(team_id=team_id)
     statuses = query.all()
@@ -284,6 +317,16 @@ def get_event_player_actions(event_id):
             JOIN new_stability.challenges          ch ON ch.id = cs.challenge_id
             LEFT JOIN new_stability.triggers       tr ON tr.id = ch.trigger_id
             JOIN new_stability.territories        ter ON ter.challenge_id = ch.id
+                OR ter.challenge_id IN (
+                    SELECT parent_challenge_id FROM new_stability.challenges
+                    WHERE id = ch.id AND parent_challenge_id IS NOT NULL
+                )
+                OR ter.challenge_id IN (
+                    SELECT p.parent_challenge_id
+                    FROM new_stability.challenges c2
+                    JOIN new_stability.challenges p ON p.id = c2.parent_challenge_id
+                    WHERE c2.id = ch.id AND p.parent_challenge_id IS NOT NULL
+                )
             JOIN new_stability.regions              r ON r.id = ter.region_id
             WHERE t.event_id = :event_id
               AND r.event_id = :event_id
