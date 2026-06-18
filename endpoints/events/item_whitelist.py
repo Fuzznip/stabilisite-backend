@@ -58,15 +58,33 @@ def get_item_whitelist():
             .all()
         )
 
-        # Conquest path: Trigger → Challenge → Territory → Region
-        conquest_triggers = (
-            NewTrigger.query
-            .join(Challenge, Challenge.trigger_id == NewTrigger.id)
-            .join(Territory, Territory.challenge_id == Challenge.id)
-            .join(Region, Region.id == Territory.region_id)
-            .filter(Region.event_id.in_(new_event_ids))
+        # Conquest path: handles flat, 2-level (root→leaf), and 3-level (root→group→leaf)
+        territory_root_ids = [
+            t.challenge_id for t in (
+                Territory.query
+                .join(Region, Region.id == Territory.region_id)
+                .filter(Region.event_id.in_(new_event_ids))
+                .filter(Territory.challenge_id.isnot(None))
+                .all()
+            )
+        ]
+        mid_ids = [
+            c.id for c in Challenge.query
+            .filter(Challenge.parent_challenge_id.in_(territory_root_ids))
+            .filter(Challenge.trigger_id.is_(None))
             .all()
-        )
+        ]
+        leaf_challenge_ids = [
+            c.trigger_id for c in Challenge.query
+            .filter(Challenge.trigger_id.isnot(None))
+            .filter(
+                Challenge.id.in_(territory_root_ids)
+                | Challenge.parent_challenge_id.in_(territory_root_ids)
+                | Challenge.parent_challenge_id.in_(mid_ids)
+            )
+            .all()
+        ]
+        conquest_triggers = NewTrigger.query.filter(NewTrigger.id.in_(leaf_challenge_ids)).all()
 
         for trigger in bingo_triggers + conquest_triggers:
             if trigger.type == "DROP":
