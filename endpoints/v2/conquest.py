@@ -168,7 +168,7 @@ def get_territory_progress(territory_id):
         SELECT
             t.id AS team_id,
             COALESCE(SUM(COALESCE(cs.quantity, 0)), 0) AS total_quantity,
-            COALESCE(SUM(FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)), 0) AS completions
+            COALESCE(SUM(COALESCE(leaf.value, 1) * FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)), 0) AS completions
         FROM new_stability.teams t
         JOIN new_stability.challenges leaf
             ON leaf.trigger_id IS NOT NULL AND (

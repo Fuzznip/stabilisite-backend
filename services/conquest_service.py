@@ -34,7 +34,7 @@ def update_territory_control(territory_id, session) -> dict:
         SELECT
             t.id                                                               AS team_id,
             terr.controlling_team_id,
-            COALESCE(SUM(FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)), 0) AS completions
+            COALESCE(SUM(COALESCE(leaf.value, 1) * FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)), 0) AS completions
         FROM new_stability.territories terr
         JOIN new_stability.regions r ON r.id = terr.region_id
         JOIN new_stability.teams t ON t.event_id = r.event_id
@@ -165,7 +165,7 @@ def check_green_log(team_id, region_id, session) -> bool:
         LEFT JOIN (
             SELECT
                 terr2.id AS territory_id,
-                SUM(FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)) AS leaf_completions
+                SUM(COALESCE(leaf.value, 1) * FLOOR(COALESCE(cs.quantity, 0)::numeric / leaf.quantity)) AS leaf_completions
             FROM new_stability.territories terr2
             JOIN new_stability.challenges leaf
                 ON leaf.trigger_id IS NOT NULL AND (
