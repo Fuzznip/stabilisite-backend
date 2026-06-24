@@ -30,6 +30,17 @@ def update_territory_control(territory_id, session) -> dict:
     Updates territories.controlling_team_id in place.
     Returns {changed, previous_team_id, new_team_id}.
     """
+    root = session.execute(text("""
+        SELECT c.quantity, c.trigger_id
+        FROM new_stability.territories t
+        JOIN new_stability.challenges c ON c.id = t.challenge_id
+        WHERE t.id = :territory_id
+    """), {"territory_id": str(territory_id)}).fetchone()
+
+    # SINGLE type (root has trigger_id): leaf.quantity already gates via FLOOR, threshold = 1.
+    # OR_FLAT/GROUPED (root has no trigger, qty > 1): require score >= root.quantity before capture.
+    min_completions = root.quantity if (root and not root.trigger_id and root.quantity > 1) else 1
+
     rows = session.execute(text("""
         SELECT
             t.id                                                               AS team_id,
@@ -60,7 +71,7 @@ def update_territory_control(territory_id, session) -> dict:
     current_controller_id = rows[0].controlling_team_id
     leader = rows[0]
 
-    if not leader.completions or int(leader.completions) == 0:
+    if not leader.completions or int(leader.completions) < min_completions:
         return {"changed": False, "previous_team_id": current_controller_id, "new_team_id": current_controller_id}
 
     if not current_controller_id:
@@ -160,8 +171,14 @@ def check_green_log(team_id, region_id, session) -> bool:
     result = session.execute(text("""
         SELECT
             COUNT(DISTINCT terr.id)                                                          AS total,
-            COUNT(DISTINCT terr.id) FILTER (WHERE COALESCE(per_terr.leaf_completions, 0) >= 1) AS completed
+            COUNT(DISTINCT terr.id) FILTER (
+                WHERE COALESCE(per_terr.leaf_completions, 0) >= CASE
+                    WHEN root_c.trigger_id IS NULL AND root_c.quantity > 1 THEN root_c.quantity
+                    ELSE 1
+                END
+            ) AS completed
         FROM new_stability.territories terr
+        LEFT JOIN new_stability.challenges root_c ON root_c.id = terr.challenge_id
         LEFT JOIN (
             SELECT
                 terr2.id AS territory_id,
