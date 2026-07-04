@@ -139,13 +139,8 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
         trigger_name_lower = trigger.name.lower()
         trigger_source_lower = trigger.source.lower() if trigger.source else ""
 
-        if trigger.type == 'CHAT':
-            # For CHAT triggers: name is a label, source holds the match pattern
-            name_match = fnmatch.fnmatch(submission_trigger_lower, trigger_source_lower)
-            source_match = True
-        else:
-            name_match = fnmatch.fnmatch(submission_trigger_lower, trigger_name_lower)
-            source_match = (not trigger_source_lower) or (trigger_source_lower == submission_source_lower)
+        name_match = fnmatch.fnmatch(submission_trigger_lower, trigger_name_lower)
+        source_match = (trigger.type == 'CHAT') or (not trigger_source_lower) or (trigger_source_lower == submission_source_lower)
 
         if not (name_match and source_match):
             continue
