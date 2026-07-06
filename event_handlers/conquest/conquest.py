@@ -145,6 +145,9 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
         if not (name_match and source_match):
             continue
 
+        if challenge.min_quantity_per_action is not None and submission.quantity < challenge.min_quantity_per_action:
+            continue
+
         # Get or create challenge status
         challenge_status = ChallengeStatus.query.filter_by(
             team_id=team.id,
