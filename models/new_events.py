@@ -189,6 +189,7 @@ class Challenge(db.Model, Serializer):
     quantity = db.Column(db.Integer, nullable=True, default=1)
     value = db.Column(db.Integer, nullable=False, default=1)
     count_per_action = db.Column(db.Integer, nullable=True, default=None)  # If set, each action counts as this value regardless of action quantity
+    min_quantity_per_action = db.Column(db.Integer, nullable=True, default=None)  # If set, action is ignored unless submission.quantity >= this value
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
