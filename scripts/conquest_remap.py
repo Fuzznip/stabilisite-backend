@@ -197,7 +197,7 @@ if True:
     ensure_trigger('Horn of yama', 'Yama')
     # 9.3 Doom
     ensure_trigger('Cloth of mokhaiotl', 'Doom of Mokhaiotl')
-    ensure_trigger('Eye of ayak', 'Doom of Mokhaiotl')
+    ensure_trigger('Eye of ayak (uncharged)', 'Doom of Mokhaiotl')
 
     print("Triggers done.\n")
 
@@ -604,7 +604,7 @@ if True:
     # 9.3 Doom Unique
     set_or_group('848f77dc-b98d-4cc0-a4b8-98b9af597aa6', [
         T('Cloth of mokhaiotl', 'Doom of Mokhaiotl'),
-        T('Eye of ayak', 'Doom of Mokhaiotl'),
+        T('Eye of ayak (uncharged)', 'Doom of Mokhaiotl'),
         T('Avernic treads', 'Doom of Mokhaiotl'),
     ])
 
