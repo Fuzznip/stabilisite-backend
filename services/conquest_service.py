@@ -4,11 +4,6 @@ import uuid
 import logging
 from sqlalchemy import text
 
-CONQUEST_SCORING = {
-    "TERRITORY_OWNED": 3,
-    "REGION_OWNED": 20,
-}
-
 # event_id (str) -> set of SimpleQueue instances, one per connected SSE client
 sse_clients: dict[str, set[queue.SimpleQueue]] = {}
 
@@ -221,22 +216,19 @@ def recalculate_team_points(team_id, event_id, session) -> int:
     result = session.execute(text("""
         SELECT
             (
-                SELECT COUNT(*)
+                SELECT COALESCE(SUM(t.points), 0)
                 FROM new_stability.territories t
                 JOIN new_stability.regions r ON r.id = t.region_id
                 WHERE r.event_id = :event_id AND t.controlling_team_id = :team_id
-            ) AS territories_controlled,
+            ) AS territory_points,
             (
-                SELECT COUNT(*)
+                SELECT COALESCE(SUM(points), 0)
                 FROM new_stability.regions
                 WHERE event_id = :event_id AND controlling_team_id = :team_id
-            ) AS regions_controlled
+            ) AS region_points
     """), {"team_id": str(team_id), "event_id": str(event_id)}).fetchone()
 
-    points = (
-        int(result.territories_controlled) * CONQUEST_SCORING["TERRITORY_OWNED"] +
-        int(result.regions_controlled) * CONQUEST_SCORING["REGION_OWNED"]
-    )
+    points = int(result.territory_points) + int(result.region_points)
 
     session.execute(text("""
         UPDATE new_stability.teams SET points = :points, updated_at = NOW() WHERE id = :team_id
