@@ -349,6 +349,7 @@ class Region(db.Model, Serializer):
     image_url = db.Column(db.String(512), nullable=True)
     offset_x = db.Column(db.Integer, nullable=True)
     offset_y = db.Column(db.Integer, nullable=True)
+    points = db.Column(db.Integer, nullable=False, server_default='20')
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
@@ -375,6 +376,7 @@ class Territory(db.Model, Serializer):
     offset_x = db.Column(db.Integer, nullable=True)
     offset_y = db.Column(db.Integer, nullable=True)
     polygon_points = db.Column(JSONB, nullable=True)
+    points = db.Column(db.Integer, nullable=False, server_default='3')
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     # Relationships
