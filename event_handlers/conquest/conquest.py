@@ -241,7 +241,8 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
                 db.session.flush()
                 new_log_entries.append(region_log)
 
-        if check_green_log(team.id, region.id, db.session):
+        # Green log checks temporarily disabled
+        if False and check_green_log(team.id, region.id, db.session):
             green_log = EventLog(
                 event_id=event.id,
                 team_id=team.id,
