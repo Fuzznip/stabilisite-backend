@@ -32,9 +32,10 @@ def update_territory_control(territory_id, session) -> dict:
         WHERE t.id = :territory_id
     """), {"territory_id": str(territory_id)}).fetchone()
 
-    # SINGLE type (root has trigger_id): leaf.quantity already gates via FLOOR, threshold = 1.
-    # OR_FLAT/GROUPED (root has no trigger, qty > 1): require score >= root.quantity before capture.
-    min_completions = root.quantity if (root and not root.trigger_id and root.quantity > 1) else 1
+    # Raw leaf score required for ONE territory completion:
+    #   SINGLE (root has trigger_id): leaf.quantity already gates via FLOOR, so 1 item = 1 completion.
+    #   OR_FLAT/GROUPED (root has no trigger, qty > 1): root.quantity items make 1 completion.
+    items_per_completion = root.quantity if (root and not root.trigger_id and root.quantity > 1) else 1
 
     rows = session.execute(text("""
         SELECT
@@ -63,20 +64,27 @@ def update_territory_control(territory_id, session) -> dict:
     if not rows:
         return {"changed": False, "previous_team_id": None, "new_team_id": None}
 
+    # The query returns each team's raw leaf score. Control is decided on the number of *full*
+    # territory completions (score // items_per_completion), never the raw score — otherwise a team
+    # with surplus items of one bundle beats a rival that is tied on completions (e.g. 4 items and
+    # 3 items are both a single completion when 3 items are required).
+    def completion_count(raw) -> int:
+        return int(raw or 0) // items_per_completion
+
     current_controller_id = rows[0].controlling_team_id
     leader = rows[0]
 
-    if not leader.completions or int(leader.completions) < min_completions:
+    if completion_count(leader.completions) < 1:
         return {"changed": False, "previous_team_id": current_controller_id, "new_team_id": current_controller_id}
 
     if not current_controller_id:
         new_controller_id = leader.team_id
     else:
         current_count = next(
-            (int(r.completions) for r in rows if r.team_id == current_controller_id), 0
+            (completion_count(r.completions) for r in rows if r.team_id == current_controller_id), 0
         )
         challenger = next(
-            (r for r in rows if r.team_id != current_controller_id and int(r.completions) > current_count),
+            (r for r in rows if r.team_id != current_controller_id and completion_count(r.completions) > current_count),
             None
         )
         new_controller_id = challenger.team_id if challenger else current_controller_id
