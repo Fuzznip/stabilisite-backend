@@ -167,7 +167,12 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
         old_completions = challenge_status.quantity // challenge.quantity
 
         # Atomic quantity increment to avoid race conditions
-        increment = challenge.count_per_action if challenge.count_per_action is not None else submission.quantity
+        if challenge.count_per_action is not None:
+            increment = challenge.count_per_action
+        elif challenge.min_quantity_per_action is not None:
+            increment = 1
+        else:
+            increment = submission.quantity
         db.session.execute(
             text("UPDATE new_stability.challenge_statuses SET quantity = quantity + :qty, updated_at = NOW() WHERE id = :cs_id"),
             {"qty": increment, "cs_id": str(challenge_status.id)},
