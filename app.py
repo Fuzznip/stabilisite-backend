@@ -7,6 +7,7 @@ from logging.config import dictConfig
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask import Flask, render_template
+from flask_compress import Compress
 from dotenv import load_dotenv
 from flask_swagger_ui import get_swaggerui_blueprint
 import firebase_admin
@@ -89,6 +90,13 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_timeout': 30,
     'pool_pre_ping': True,
 }
+# Compress JSON (and other text) responses. SSE (text/event-stream) is not in
+# the default mimetype allowlist, so streaming responses are left uncompressed.
+# Restrict to br+gzip (drop the default zstd): zstd isn't supported by Safari and
+# some HTTP clients, which makes them render the raw bytes instead of the body.
+app.config['COMPRESS_ALGORITHM'] = ['br', 'gzip']
+Compress(app)
+
 app_context = app.app_context()
 db = SQLAlchemy(app)
 
