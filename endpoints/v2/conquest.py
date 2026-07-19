@@ -386,6 +386,51 @@ def get_event_player_actions(event_id):
 
 
 # ---------------------------------------------------------------------------
+# Scoreboard (precomputed standings)
+# ---------------------------------------------------------------------------
+
+@app.route('/v2/events/<event_id>/scoreboard', methods=['GET'])
+def get_conquest_scoreboard(event_id):
+    """
+    Lean standings payload for the scoreboard sidebar: one row per team with
+    points and the number of unique territory challenges the team has completed.
+
+    Replaces the client pulling the entire event log (per_page=1000) every 10s
+    just to count unique completions, and avoids the full-event/team-roster
+    payload the /teams proxy previously fetched.
+    """
+    event, err = _require_conquest_event(event_id)
+    if err:
+        return err
+
+    # Distinct territory challenges each team was first to complete.
+    unique_rows = db.session.execute(text("""
+        SELECT team_id, COUNT(DISTINCT entity_id) AS unique_tasks
+        FROM new_stability.event_logs
+        WHERE event_id = :event_id
+          AND type = 'CHALLENGE_COMPLETED'
+          AND (meta->>'unique')::boolean IS TRUE
+          AND entity_id IS NOT NULL
+        GROUP BY team_id
+    """), {"event_id": str(event_id)}).fetchall()
+    unique_by_team = {str(r.team_id): int(r.unique_tasks) for r in unique_rows}
+
+    teams = Team.query.filter_by(event_id=event_id).order_by(Team.points.desc()).all()
+
+    data = [{
+        'id': str(t.id),
+        'event_id': str(t.event_id),
+        'name': t.name,
+        'color': t.color,
+        'image_url': t.image_url,
+        'points': t.points,
+        'unique_tasks': unique_by_team.get(str(t.id), 0),
+    } for t in teams]
+
+    return jsonify({'data': data}), 200
+
+
+# ---------------------------------------------------------------------------
 # Event Logs
 # ---------------------------------------------------------------------------
 
