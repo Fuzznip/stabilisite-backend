@@ -400,4 +400,53 @@ class EventLog(db.Model, Serializer):
             "value": self.value,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None
         }
+
+class CollectionLogItem(db.Model, Serializer):
+    """Catalog of OSRS collection log slots (the in-game clog structure).
+
+    Seeded from the OSRS Wiki. An item can appear on multiple pages (e.g. shared
+    clue rewards, pets that also show under 'All Pets'), so item_id is NOT the
+    primary key; the natural key is (item_id, page).
+    """
+    __tablename__ = 'collection_log_items'
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    item_id = db.Column(db.Integer, nullable=False)   # OSRS item id (matches Dink Item.id)
+    name = db.Column(db.String, nullable=False)
+    category = db.Column(db.String, nullable=False)   # tab: Bosses/Raids/Clues/Minigames/Other
+    page = db.Column(db.String, nullable=False)       # source/activity, e.g. "Zulrah"
+    page_order = db.Column(db.Integer, nullable=False, default=0)  # source order within its tab
+    sequence = db.Column(db.Integer, nullable=False, default=0)    # item order within its page
+    image_url = db.Column(db.String)
+    __table_args__ = (
+        db.UniqueConstraint('item_id', 'page', name='uq_collection_log_item_page'),
+        db.Index('ix_collection_log_items_item_id', 'item_id'),
+    )
+
+    def serialize(self):
+        return Serializer.serialize(self)
+
+class CollectionLogDrop(db.Model, Serializer):
+    """A single collection-log-eligible item received by a player (via Dink LOOT).
+
+    One row per received drop (duplicates kept) so we can show per-member counts
+    and first/last dates. discord_id is nullable when the RSN can't be matched to
+    a member. item_id is a plain indexed column (no FK: collection_log_items.item_id
+    is non-unique because of multi-page items).
+    """
+    __tablename__ = 'collection_log_drops'
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    discord_id = db.Column(db.String, db.ForeignKey('users.discord_id', ondelete="CASCADE"))
+    rsn = db.Column(db.String, nullable=False)
+    item_id = db.Column(db.Integer, nullable=False, index=True)   # OSRS item id
+    item_name = db.Column(db.String)
+    source = db.Column(db.String)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    value = db.Column(db.Integer, default=0)
+    screenshot = db.Column(db.String)
+    # Callable, not a call: `default=datetime.now(...)` is evaluated once at
+    # import, so every row would be stamped with the server's start time.
+    timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    def serialize(self):
+        return Serializer.serialize(self)
     
