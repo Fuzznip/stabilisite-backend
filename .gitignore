@@ -8,3 +8,5 @@ static/swagger.json
 railway_dump.sql
 *.sql.dump
 .claude
+# Collection log catalog: generated from the game cache, published to S3
+data/collection_log_catalog.json
