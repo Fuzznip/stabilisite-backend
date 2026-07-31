@@ -5,6 +5,7 @@ from event_handlers.botw.boss_of_the_week_handler import botw_handler
 from event_handlers.raid_weekend.raid_weekend_handler import raid_weekend_event_handler
 from event_handlers.bingo.bingo import bingo_handler
 from event_handlers.conquest.conquest import conquest_handler
+from event_handlers.collection_log.collection_log_handler import collection_log_handler
 
 # Register your event handlers here
 EventHandler.register_handler(gnome_child_bone_handler)
@@ -13,3 +14,4 @@ EventHandler.register_handler(botw_handler)
 EventHandler.register_handler(bingo_handler)
 EventHandler.register_handler(raid_weekend_event_handler)
 EventHandler.register_handler(conquest_handler)
+EventHandler.register_handler(collection_log_handler)

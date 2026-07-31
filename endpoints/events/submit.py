@@ -42,7 +42,8 @@ def submit_event():
         totalValue=data.get("totalValue"),
         img_path=data.get("img_path"),
         type=data.get("type"),
-        request_id=data.get("request_id")
+        request_id=data.get("request_id"),
+        item_id=data.get("item_id")
     )
 
     # Pass the submission data to the centralized event handler system

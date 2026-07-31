@@ -1,7 +1,7 @@
 import logging
 
 class EventSubmission:
-    def __init__(self, rsn: str, id: str | None, trigger: str, source: str | None, quantity: int | None, totalValue: int | None, img_path: str | None, type: str | None, request_id: str | None = None) -> None:
+    def __init__(self, rsn: str, id: str | None, trigger: str, source: str | None, quantity: int | None, totalValue: int | None, img_path: str | None, type: str | None, request_id: str | None = None, item_id: int | None = None) -> None:
         self.rsn = rsn
         self.id = id
         self.trigger = trigger
@@ -11,6 +11,7 @@ class EventSubmission:
         self.img_path = img_path
         self.type = type
         self.request_id = request_id
+        self.item_id = item_id
 
     rsn: str
     id: str | None
@@ -21,6 +22,7 @@ class EventSubmission:
     img_path: str | None
     type: str | None
     request_id: str | None
+    item_id: int | None
 
 class NotificationAuthor:
     def __init__(self, name: str, icon_url: str | None = None, url: str | None = None) -> None:
