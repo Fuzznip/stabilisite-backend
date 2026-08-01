@@ -1,6 +1,7 @@
 from app import app, db
 from flask import jsonify, request
 from sqlalchemy import func, distinct
+from sqlalchemy.orm import aliased
 from models.models import CollectionLogItem, CollectionLogDrop, Users
 
 
@@ -91,35 +92,54 @@ def get_collection_log_item_ids():
 
 @app.route("/collection-log/recent", methods=['GET'])
 def get_collection_log_recent():
-    """Most recently received collection log items, newest first.
+    """First time each member received each collection log item, newest first.
+
+    Deduplicated: a member who gets the same item repeatedly appears once for it,
+    at their earliest drop. Without this the feed is dominated by whoever is
+    farming one boss. Per-member counts still come from /collection-log/summary,
+    which counts every drop.
 
     Paginated with the same envelope as /splits so the website can share its
-    pagination handling. Falls back to the drop's own rsn when the drop was
-    never matched to a member (discord_id is nullable).
+    pagination handling. Falls back to the drop's own rsn when the drop was never
+    matched to a member (discord_id is nullable, so it can't be the group key).
     """
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     per_page = max(1, min(per_page, 100))
 
-    query = db.session.query(CollectionLogDrop, Users.runescape_name).outerjoin(
-        Users, Users.discord_id == CollectionLogDrop.discord_id
-    ).order_by(CollectionLogDrop.timestamp.desc())
+    player = func.coalesce(CollectionLogDrop.discord_id, CollectionLogDrop.rsn)
+
+    # DISTINCT ON keeps the first row of each group, so ordering ascending by
+    # timestamp within (player, item) picks each member's earliest drop.
+    firsts = (
+        db.session.query(CollectionLogDrop)
+        .distinct(player, CollectionLogDrop.item_id)
+        .order_by(player, CollectionLogDrop.item_id, CollectionLogDrop.timestamp.asc())
+        .subquery()
+    )
+    drop = aliased(CollectionLogDrop, firsts)
+
+    query = (
+        db.session.query(drop, Users.runescape_name)
+        .outerjoin(Users, Users.discord_id == drop.discord_id)
+        .order_by(drop.timestamp.desc())
+    )
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify({
         "items": [
             {
-                "id": str(drop.id),
-                "discord_id": drop.discord_id,
-                "runescape_name": runescape_name or drop.rsn,
-                "item_id": drop.item_id,
-                "item_name": drop.item_name,
-                "source": drop.source,
-                "quantity": drop.quantity,
-                "obtained_at": drop.timestamp.isoformat() if drop.timestamp else None,
+                "id": str(row.id),
+                "discord_id": row.discord_id,
+                "runescape_name": runescape_name or row.rsn,
+                "item_id": row.item_id,
+                "item_name": row.item_name,
+                "source": row.source,
+                "quantity": row.quantity,
+                "obtained_at": row.timestamp.isoformat() if row.timestamp else None,
             }
-            for drop, runescape_name in pagination.items
+            for row, runescape_name in pagination.items
         ],
         "page": pagination.page,
         "per_page": pagination.per_page,
