@@ -1,16 +1,19 @@
-"""Boss of the week: seeding bosses from the collection log, and scoring reads.
+"""Boss of the week: building bosses from a supplied drop list, and scoring reads.
 
 A boss is a container Challenge with two kinds of children:
 
     container (no trigger, value 0)
     ├── KC challenge     — Trigger(type=KC), count_per_action=1
-    └── drop challenge×N — Trigger(type=DROP), one per collection log item
+    └── drop challenge×N — Trigger(type=DROP), one per drop you configure
 
 Every challenge is repeatable (quantity=NULL), so it accumulates forever and
 never completes: a second Awakener's orb is worth as much as the first.
+
+The drop list is stated outright rather than derived from the collection log.
+Nothing here reads CollectionLogItem.
 """
 from app import db
-from models.models import CollectionLogItem, Users
+from models.models import Users
 from models.new_events import BotwBoss, Challenge, ChallengeStatus, Trigger
 from sqlalchemy import func, null
 
@@ -23,64 +26,75 @@ KC_COUNT_PER_ACTION = 1
 REPEATABLE = null()
 
 
-def get_or_create_trigger(name: str, source: str | None, type: str, wiki_id: int | None = None) -> Trigger:
-    """Triggers are global and shared across events, keyed by (name, source)."""
+def get_or_create_trigger(
+    name: str,
+    source: str | None = None,
+    type: str = 'DROP',
+    wiki_id: int | None = None,
+    img_path: str | None = None,
+) -> Trigger:
+    """Triggers are global and shared across events, keyed by (name, source).
+
+    `source` defaults to None on purpose. The handler treats a sourceless
+    trigger as matching any submission source, so scoring keys on the item name
+    alone — which is what lets a KC submission score without Dink's `source`
+    lining up exactly.
+    """
     trigger = Trigger.query.filter_by(name=name, source=source).first()
     if trigger:
-        # Backfill an item id a hand-made trigger may be missing.
+        # Backfill fields a hand-made trigger may be missing. Only ever fill a
+        # null: triggers are shared, so overwriting one event's icon from
+        # another event's payload would be wrong.
         if wiki_id is not None and trigger.wiki_id is None:
             trigger.wiki_id = wiki_id
+        if img_path is not None and trigger.img_path is None:
+            trigger.img_path = img_path
         return trigger
 
-    trigger = Trigger(name=name, source=source, type=type, wiki_id=wiki_id)
+    trigger = Trigger(name=name, source=source, type=type, wiki_id=wiki_id, img_path=img_path)
     db.session.add(trigger)
     db.session.flush()
     return trigger
 
 
-def catalog_pages() -> list[dict]:
-    """Collection log pages that can back a boss, with their drop counts."""
-    rows = (
-        db.session.query(
-            CollectionLogItem.page,
-            CollectionLogItem.category,
-            func.count(CollectionLogItem.id).label('item_count'),
-            func.min(CollectionLogItem.page_order).label('page_order'),
-        )
-        .group_by(CollectionLogItem.page, CollectionLogItem.category)
-        .order_by(CollectionLogItem.category, func.min(CollectionLogItem.page_order))
-        .all()
+def _add_drop_challenge(
+    container_id,
+    name: str,
+    value: int,
+    source: str | None = None,
+    img_path: str | None = None,
+    wiki_id: int | None = None,
+) -> Challenge:
+    """Attach one drop challenge to a boss's container. Caller commits."""
+    trigger = get_or_create_trigger(
+        name, source=source, type='DROP', wiki_id=wiki_id, img_path=img_path,
     )
-    return [
-        {'page': r.page, 'category': r.category, 'item_count': r.item_count}
-        for r in rows
-    ]
+    challenge = Challenge(
+        parent_challenge_id=container_id,
+        trigger_id=trigger.id,
+        quantity=REPEATABLE,
+        value=value,
+    )
+    db.session.add(challenge)
+    db.session.flush()
+    return challenge
 
 
-def seed_boss(
+def create_boss(
     event_id,
     name: str,
-    clog_page: str | None = None,
     kc_points: int = 1,
     drop_points: int = 1,
-    drop_source: str | None = None,
+    drops: list[dict] | None = None,
     image_url: str | None = None,
     display_order: int | None = None,
 ) -> BotwBoss:
-    """Create a boss and its whole challenge tree. Raises ValueError if the page
-    has no catalog rows, which otherwise yields a boss nobody can score on."""
-    clog_page = clog_page or name
-    drop_source = drop_source or name
+    """Create a boss and its whole challenge tree from an explicit drop list.
 
-    items = (
-        CollectionLogItem.query
-        .filter_by(page=clog_page)
-        .order_by(CollectionLogItem.sequence)
-        .all()
-    )
-    if not items:
-        raise ValueError(f"No collection log items found for page {clog_page!r}")
-
+    Each entry in `drops` is `{name, points?, img_path?, source?, wiki_id?}`;
+    `points` falls back to `drop_points`. An empty list is legal and yields a
+    KC-only boss, which is a real configuration for a kills-only week.
+    """
     # REPEATABLE, not None: Challenge.quantity carries a column default of 1, and
     # SQLAlchemy applies that default to an attribute explicitly set to None. Only
     # a SQL NULL literal actually stores NULL, which is what marks a challenge as
@@ -89,7 +103,7 @@ def seed_boss(
     db.session.add(container)
     db.session.flush()
 
-    kc_trigger = get_or_create_trigger(name, name, 'KC')
+    kc_trigger = get_or_create_trigger(name, type='KC')
     db.session.add(Challenge(
         parent_challenge_id=container.id,
         trigger_id=kc_trigger.id,
@@ -98,19 +112,19 @@ def seed_boss(
         count_per_action=KC_COUNT_PER_ACTION,
     ))
 
-    for item in items:
-        drop_trigger = get_or_create_trigger(item.name, drop_source, 'DROP', wiki_id=item.item_id)
-        db.session.add(Challenge(
-            parent_challenge_id=container.id,
-            trigger_id=drop_trigger.id,
-            quantity=REPEATABLE,
-            value=drop_points,
-        ))
+    for drop in drops or []:
+        _add_drop_challenge(
+            container.id,
+            name=drop['name'],
+            value=drop.get('points', drop_points),
+            source=drop.get('source'),
+            img_path=drop.get('img_path'),
+            wiki_id=drop.get('wiki_id'),
+        )
 
     boss = BotwBoss(
         event_id=event_id,
         name=name,
-        clog_page=clog_page,
         image_url=image_url,
         display_order=display_order,
         challenge_id=container.id,
@@ -118,6 +132,34 @@ def seed_boss(
     db.session.add(boss)
     db.session.commit()
     return boss
+
+
+def add_drop(boss: BotwBoss, drop: dict, default_points: int = 1) -> Challenge:
+    """Append one drop to an existing boss."""
+    challenge = _add_drop_challenge(
+        boss.challenge_id,
+        name=drop['name'],
+        value=drop.get('points', default_points),
+        source=drop.get('source'),
+        img_path=drop.get('img_path'),
+        wiki_id=drop.get('wiki_id'),
+    )
+    db.session.commit()
+    return challenge
+
+
+def find_boss_drop(challenge_id) -> Challenge | None:
+    """A drop challenge, only if it really belongs to a BOTW boss.
+
+    Guards the delete route: without this check any challenge id — a bingo tile's,
+    a conquest territory's — would be deletable through it.
+    """
+    return (
+        db.session.query(Challenge)
+        .join(BotwBoss, BotwBoss.challenge_id == Challenge.parent_challenge_id)
+        .filter(Challenge.id == challenge_id)
+        .first()
+    )
 
 
 def boss_challenges(boss: BotwBoss) -> list[tuple[Challenge, Trigger]]:

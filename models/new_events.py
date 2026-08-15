@@ -402,12 +402,11 @@ class BotwBoss(db.Model, Serializer):
 
     An event can run several bosses at once (a DT2 week covers all four awakened
     bosses). Each boss anchors a container challenge whose children are the KC
-    challenge and one challenge per collection log drop — the same way
+    challenge and one challenge per configured drop — the same way
     Territory.challenge_id anchors conquest challenges.
 
-    `name` is what Dink calls the kill (Sol Heredit) and `clog_page` is the
-    collection log page the drops were seeded from (Fortis Colosseum). They are
-    usually equal but not always.
+    `name` is what Dink calls the kill (Sol Heredit). The drop list is supplied
+    when the boss is created rather than derived from the collection log.
     """
     __tablename__ = 'botw_bosses'
     __table_args__ = {'schema': 'new_stability'}
@@ -415,7 +414,6 @@ class BotwBoss(db.Model, Serializer):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.events.id', ondelete='CASCADE'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    clog_page = db.Column(db.String(255), nullable=False)
     image_url = db.Column(db.String(512), nullable=True)
     display_order = db.Column(db.Integer, nullable=True)
     challenge_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenges.id', ondelete='SET NULL'), nullable=True, unique=True)

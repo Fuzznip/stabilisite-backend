@@ -25,24 +25,47 @@ from sqlalchemy import text
 
 
 def botw_event_handler(submission: EventSubmission) -> list[NotificationResponse]:
+    """Score a submission against every botw event currently running.
+
+    Overlapping events are legitimate — a new week can start before the previous
+    one closes, and a one-off side event can run alongside the weekly. Scoring
+    only the first match would silently hand every submission to whichever row
+    the database happened to return, so each active event is scored
+    independently and contributes its own notification.
+    """
     now = datetime.now(timezone.utc)
 
-    event = Event.query.filter(
+    events = Event.query.filter(
         Event.start_date <= now,
         Event.end_date >= now,
         Event.type == 'botw',
-    ).first()
+    ).all()
 
-    if not event:
+    if not events:
         logging.info("[BOTW] No active event, skipping")
         return []
-
-    logging.info(f"[BOTW] Matched — event={event.name!r} ({event.id})")
 
     user = resolve_user(submission.rsn, submission.id)
     if not user:
         logging.warning(f"[BOTW] user not found: rsn={submission.rsn}, discord_id={submission.id}")
         return []
+
+    notifications: list[NotificationResponse] = []
+    for event in events:
+        # One event failing must not cost the others their score; each is
+        # committed on its own inside _score_event.
+        try:
+            notifications.extend(_score_event(event, submission, user, now))
+        except Exception:
+            logging.exception(f"[BOTW] scoring failed for event {event.id}")
+            db.session.rollback()
+
+    return notifications
+
+
+def _score_event(event, submission: EventSubmission, user, now) -> list[NotificationResponse]:
+    """Score the submission against one event. Commits its own work."""
+    logging.info(f"[BOTW] Matched — event={event.name!r} ({event.id})")
 
     bosses = BotwBoss.query.filter_by(event_id=event.id).all()
     container_ids = [b.challenge_id for b in bosses if b.challenge_id]

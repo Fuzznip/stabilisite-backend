@@ -5,11 +5,13 @@ from flask import jsonify, request
 from helper.helpers import ModelEncoder
 from models.new_events import BotwBoss, Challenge, Event
 from services.botw_service import (
-    catalog_pages,
+    add_drop,
+    create_boss,
+    find_boss_drop,
     leaderboard,
-    seed_boss,
     serialize_boss,
 )
+from services.crud_service import CRUDService
 
 
 def _require_botw_event(event_id):
@@ -23,22 +25,20 @@ def _require_botw_event(event_id):
 
 
 # ---------------------------------------------------------------------------
-# Catalog
-# ---------------------------------------------------------------------------
-
-@app.route('/v2/botw/catalog/pages', methods=['GET'])
-def get_botw_catalog_pages():
-    """Collection log pages available to seed a boss from."""
-    pages = catalog_pages()
-    category = request.args.get('category')
-    if category:
-        pages = [p for p in pages if p['category'].lower() == category.lower()]
-    return jsonify({'data': pages, 'total': len(pages)}), 200
-
-
-# ---------------------------------------------------------------------------
 # Bosses
 # ---------------------------------------------------------------------------
+
+
+def _validate_drops(drops) -> str | None:
+    """Return an error message, or None if the drop list is well formed."""
+    if not isinstance(drops, list):
+        return 'drops must be a list'
+    for drop in drops:
+        if not isinstance(drop, dict) or not drop.get('name'):
+            return 'Each drop requires a name'
+        if 'points' in drop and not isinstance(drop['points'], int):
+            return f"Point value for {drop['name']!r} must be an integer"
+    return None
 
 @app.route('/v2/events/<event_id>/botw/bosses', methods=['GET'])
 def get_botw_bosses(event_id):
@@ -54,7 +54,14 @@ def get_botw_bosses(event_id):
 
 @app.route('/v2/events/<event_id>/botw/bosses', methods=['POST'])
 def create_botw_boss(event_id):
-    """Seed a boss: builds its KC challenge and one challenge per clog drop."""
+    """Create a boss: its KC challenge plus one challenge per supplied drop.
+
+    Body: {name, kc_points?, drop_points?, drops?, image_url?, display_order?}
+    where each drop is {name, points?, img_path?, source?, wiki_id?}.
+
+    Item names are taken at face value — a name that does not match what Dink
+    sends simply never scores.
+    """
     event, err = _require_botw_event(event_id)
     if err:
         return err
@@ -65,22 +72,40 @@ def create_botw_boss(event_id):
     if not data.get('name'):
         return jsonify({'error': 'Missing required field: name'}), 400
 
-    try:
-        boss = seed_boss(
-            event_id=event.id,
-            name=data['name'],
-            clog_page=data.get('clog_page'),
-            kc_points=data.get('kc_points', 1),
-            drop_points=data.get('drop_points', 1),
-            drop_source=data.get('drop_source'),
-            image_url=data.get('image_url'),
-            display_order=data.get('display_order'),
-        )
-    except ValueError as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 400
+    drops = data.get('drops', [])
+    invalid = _validate_drops(drops)
+    if invalid:
+        return jsonify({'error': invalid}), 400
+
+    boss = create_boss(
+        event_id=event.id,
+        name=data['name'],
+        kc_points=data.get('kc_points', 1),
+        drop_points=data.get('drop_points', 1),
+        drops=drops,
+        image_url=data.get('image_url'),
+        display_order=data.get('display_order'),
+    )
 
     return json.dumps(serialize_boss(boss), cls=ModelEncoder), 201
+
+
+@app.route('/v2/botw/bosses/<boss_id>', methods=['PUT'])
+def update_botw_boss(boss_id):
+    """Update any field on the boss row itself.
+
+    Point values live on the child Challenge rows rather than here, so editing
+    those still goes through PUT /v2/botw/bosses/<id>/points.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No JSON received'}), 400
+
+    boss = CRUDService.update(BotwBoss, boss_id, data)
+    if not boss:
+        return jsonify({'error': 'Boss not found or update failed'}), 404
+
+    return json.dumps(serialize_boss(boss), cls=ModelEncoder), 200
 
 
 @app.route('/v2/botw/bosses/<boss_id>', methods=['DELETE'])
@@ -106,6 +131,49 @@ def delete_botw_boss(boss_id):
     db.session.commit()
 
     return jsonify({'message': 'Boss deleted successfully'}), 200
+
+
+# ---------------------------------------------------------------------------
+# Drops
+# ---------------------------------------------------------------------------
+
+@app.route('/v2/botw/bosses/<boss_id>/drops', methods=['POST'])
+def create_botw_drop(boss_id):
+    """Append one drop to a boss: {name, points?, img_path?, source?, wiki_id?}."""
+    boss = BotwBoss.query.get(boss_id)
+    if not boss:
+        return jsonify({'error': 'Boss not found'}), 404
+    if not boss.challenge_id:
+        return jsonify({'error': 'Boss has no challenge container'}), 400
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No JSON received'}), 400
+
+    invalid = _validate_drops([data])
+    if invalid:
+        return jsonify({'error': invalid}), 400
+
+    add_drop(boss, data)
+
+    return json.dumps(serialize_boss(boss), cls=ModelEncoder), 201
+
+
+@app.route('/v2/botw/drops/<challenge_id>', methods=['DELETE'])
+def delete_botw_drop(challenge_id):
+    """Remove one drop challenge.
+
+    Destructive: the drop's challenge_statuses cascade with it, so every point
+    a player earned on this drop goes too. The other drops are untouched.
+    """
+    challenge = find_boss_drop(challenge_id)
+    if not challenge:
+        return jsonify({'error': 'Drop not found'}), 404
+
+    Challenge.query.filter_by(id=challenge.id).delete(synchronize_session=False)
+    db.session.commit()
+
+    return jsonify({'message': 'Drop deleted successfully'}), 200
 
 
 @app.route('/v2/botw/bosses/<boss_id>/points', methods=['PUT'])

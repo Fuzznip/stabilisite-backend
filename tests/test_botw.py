@@ -4,14 +4,20 @@ Boss of the week test suite.
 Run from the project root: PYTHONPATH=. python tests/test_botw.py
 
 Covers:
-  - Seeding a boss from the collection log catalog (container, KC, one per drop)
+  - Creating a boss from an explicit drop list (container, KC, one per drop)
   - KC submissions scoring one kill, not the cumulative count Dink sends
   - Drops scoring every time, including duplicates
+  - Sourceless triggers matching regardless of the submission's source
+  - Adding and removing individual drops
+  - Generic field updates on a boss
   - Player-owned statuses staying out of team queries
   - Point values being applied at read time (edit a value, leaderboard moves)
   - Bulk point editing and its ownership guard
   - The whitelist exposing botw drops and boss KC names
   - Unconfigured drops, unknown users, and duplicate request_ids being ignored
+
+Nothing here touches the collection log — drop lists are supplied outright, so
+the suite needs no seeded catalog.
 """
 
 import datetime
@@ -23,7 +29,7 @@ from datetime import timedelta, timezone
 from app import app, db
 from event_handlers.botw.botw_event_handler import botw_event_handler
 from event_handlers.event_handler import EventSubmission
-from models.models import CollectionLogItem, Events as LegacyEvents, Users
+from models.models import Events as LegacyEvents, Users
 from models.new_events import (
     BotwBoss, Challenge, ChallengeStatus, Event, Trigger,
 )
@@ -36,7 +42,16 @@ from services.botw_service import leaderboard
 _pass = 0
 _fail = 0
 
-PAGE = "Duke Sucellus"   # 10 catalog items, stable page name
+BOSS = "Duke Sucellus"
+
+# The drop list is stated here rather than read from a catalog page.
+DROPS = [
+    {"name": "Awakener's orb"},
+    {"name": "Chromium ingot"},
+    {"name": "Magus vestige", "points": 40},
+    {"name": "Virtus mask", "img_path": "https://example.invalid/virtus_mask.png"},
+]
+DROP_NAMES = sorted(d["name"] for d in DROPS)
 
 
 def check(condition, name, detail=""):
@@ -103,6 +118,44 @@ def _purge_stale_test_data():
         db.session.rollback()
 
 
+def _park_other_botw_events(now):
+    """Move any other live botw event out of the active window for this run.
+
+    botw_event_handler scores every active botw event, so a real event running
+    locally would score the suite's submissions too whenever a trigger name
+    overlaps, perturbing the point assertions. Returns the original dates so the
+    finally block can put them back exactly.
+    """
+    parked = []
+    others = Event.query.filter(
+        Event.type == 'botw',
+        Event.start_date <= now,
+        Event.end_date >= now,
+    ).all()
+    for event in others:
+        parked.append((event.id, event.start_date, event.end_date))
+        event.end_date = now - timedelta(days=1)
+    if parked:
+        db.session.commit()
+        print(f"  Parked {len(parked)} other active botw event(s) for the run.")
+    return parked
+
+
+def _restore_parked_events(parked):
+    try:
+        for event_id, start_date, end_date in parked:
+            event = Event.query.get(event_id)
+            if event:
+                event.start_date = start_date
+                event.end_date = end_date
+        db.session.commit()
+        if parked:
+            print(f"  Restored {len(parked)} parked event(s).")
+    except Exception as exc:
+        print(f"  ⚠️  FAILED to restore parked events: {exc}")
+        db.session.rollback()
+
+
 def _cleanup(events, users):
     try:
         db.session.rollback()
@@ -149,15 +202,9 @@ def run():
         print("\n── Pre-cleanup (stale data from previous runs) ──────────────")
         _purge_stale_test_data()
 
-        catalog_items = CollectionLogItem.query.filter_by(page=PAGE).all()
-        if not catalog_items:
-            print(f"\n  ⚠️  collection_log_items has no rows for {PAGE!r}.")
-            print("      Seed it first: PYTHONPATH=. python scripts/seed_collection_log.py")
-            return 1
-        item_names = sorted(i.name for i in catalog_items)
-
         alice = bob = None
-        botw = bingo = None
+        botw = bingo = botw2 = None
+        parked = _park_other_botw_events(now)
 
         try:
             # ================================================================
@@ -188,13 +235,13 @@ def run():
             print(f"  Event {botw.name} ({botw.id})")
 
             # ================================================================
-            # SEEDING
+            # CREATION
             # ================================================================
-            print("\n── Seeding ─────────────────────────────────────────────────")
+            print("\n── Creation ────────────────────────────────────────────────")
 
             resp = client.post(
                 f"/v2/events/{botw.id}/botw/bosses",
-                json={"name": PAGE, "kc_points": 3, "drop_points": 10},
+                json={"name": BOSS, "kc_points": 3, "drop_points": 10, "drops": DROPS},
             )
             check(resp.status_code == 201, "POST boss returns 201", f"got {resp.status_code}: {resp.data[:200]}")
             boss_data = json.loads(resp.data)
@@ -204,8 +251,8 @@ def run():
                   "boss row created with a container challenge")
 
             children = Challenge.query.filter_by(parent_challenge_id=boss.challenge_id).all()
-            check(len(children) == len(catalog_items) + 1,
-                  f"one challenge per drop plus KC ({len(catalog_items)} + 1)",
+            check(len(children) == len(DROPS) + 1,
+                  f"one challenge per supplied drop plus KC ({len(DROPS)} + 1)",
                   f"got {len(children)}")
 
             triggers = {t.id: t for t in Trigger.query.filter(
@@ -221,28 +268,67 @@ def run():
             check(kc_children[0].value == 3, "KC challenge carries kc_points")
             check(all(c.quantity is None for c in children),
                   "every challenge is repeatable (quantity NULL)")
-            check(sorted(triggers[c.trigger_id].name for c in drop_children) == item_names,
-                  "drop challenges match the catalog page exactly")
-            check(all(triggers[c.trigger_id].wiki_id is not None for c in drop_children),
-                  "drop triggers carry the OSRS item id for icons")
-            check(all(c.value == 10 for c in drop_children), "drop challenges carry drop_points")
+            check(sorted(triggers[c.trigger_id].name for c in drop_children) == DROP_NAMES,
+                  "drop challenges match the supplied list exactly",
+                  f"got {sorted(triggers[c.trigger_id].name for c in drop_children)}")
+            check(all(triggers[c.trigger_id].source is None for c in children),
+                  "triggers are created without a source")
+            check(triggers[kc_children[0].trigger_id].source is None,
+                  "the KC trigger has no source either")
+
+            by_name = {triggers[c.trigger_id].name: c for c in drop_children}
+            orb_value = by_name["Awakener's orb"].value
+            magus_value = by_name["Magus vestige"].value
+            check(orb_value == 10,
+                  "a drop without points falls back to drop_points",
+                  f"got {orb_value}")
+            check(magus_value == 40,
+                  "a drop with explicit points overrides drop_points",
+                  f"got {magus_value}")
+            check(triggers[by_name["Virtus mask"].trigger_id].img_path ==
+                  "https://example.invalid/virtus_mask.png",
+                  "img_path from the payload lands on the trigger")
             check(len(boss_data.get('challenges', [])) == len(children),
                   "response embeds the challenge tree")
 
             kc_challenge = kc_children[0]
-            orb = next(c for c in drop_children if triggers[c.trigger_id].name == "Awakener's orb")
-            other_drop = next(c for c in drop_children if c.id != orb.id)
+            orb = by_name["Awakener's orb"]
+            other_drop = by_name["Chromium ingot"]
 
-            # Seeding a page with no catalog rows is rejected
+            # A boss with no drops at all is a legitimate kills-only week
             resp = client.post(
                 f"/v2/events/{botw.id}/botw/bosses",
-                json={"name": f"Nonexistent Boss {uid}"},
+                json={"name": f"KC Only {uid}", "kc_points": 5},
             )
-            check(resp.status_code == 400, "seeding an unknown clog page returns 400",
+            check(resp.status_code == 201, "a boss with no drops is accepted",
+                  f"got {resp.status_code}: {resp.data[:200]}")
+            kc_only = BotwBoss.query.filter_by(event_id=botw.id, name=f"KC Only {uid}").first()
+            check(Challenge.query.filter_by(parent_challenge_id=kc_only.challenge_id).count() == 1,
+                  "a KC-only boss has exactly one child challenge")
+
+            resp = client.post(
+                f"/v2/events/{botw.id}/botw/bosses",
+                json={"name": f"Bad {uid}", "drops": "not-a-list"},
+            )
+            check(resp.status_code == 400, "a non-list drops field returns 400",
                   f"got {resp.status_code}")
 
-            resp = client.post(f"/v2/events/{bingo.id}/botw/bosses", json={"name": PAGE})
-            check(resp.status_code == 400, "seeding a non-botw event returns 400",
+            resp = client.post(
+                f"/v2/events/{botw.id}/botw/bosses",
+                json={"name": f"Bad {uid}", "drops": [{"points": 5}]},
+            )
+            check(resp.status_code == 400, "a drop without a name returns 400",
+                  f"got {resp.status_code}")
+
+            resp = client.post(
+                f"/v2/events/{botw.id}/botw/bosses",
+                json={"name": f"Bad {uid}", "drops": [{"name": "X", "points": "lots"}]},
+            )
+            check(resp.status_code == 400, "a non-integer drop value returns 400",
+                  f"got {resp.status_code}")
+
+            resp = client.post(f"/v2/events/{bingo.id}/botw/bosses", json={"name": BOSS})
+            check(resp.status_code == 400, "creating on a non-botw event returns 400",
                   f"got {resp.status_code}")
 
             # ================================================================
@@ -250,8 +336,8 @@ def run():
             # ================================================================
             print("\n── KC scoring ──────────────────────────────────────────────")
 
-            notifications = submit(alice.runescape_name, PAGE, type="KC", quantity=143,
-                                   source=PAGE, request_id=f"kc1_{uid}")
+            notifications = submit(alice.runescape_name, BOSS, type="KC", quantity=143,
+                                   source=BOSS, request_id=f"kc1_{uid}")
             status = status_for(alice.id, kc_challenge.id)
             check(status is not None and status.quantity == 1,
                   "a KC submission of quantity=143 advances progress by 1 kill",
@@ -260,8 +346,8 @@ def run():
             check(points_for(alice.runescape_name, leaderboard(botw.id)) == 3,
                   "one kill is worth kc_points")
 
-            submit(alice.runescape_name, PAGE, type="KC", quantity=144,
-                   source=PAGE, request_id=f"kc2_{uid}")
+            submit(alice.runescape_name, BOSS, type="KC", quantity=144,
+                   source=BOSS, request_id=f"kc2_{uid}")
             check(status_for(alice.id, kc_challenge.id).quantity == 2, "a second kill counts once more")
             check(points_for(alice.runescape_name, leaderboard(botw.id)) == 6, "two kills are worth 6")
 
@@ -270,42 +356,59 @@ def run():
             # ================================================================
             print("\n── Drop scoring ────────────────────────────────────────────")
 
-            submit(alice.runescape_name, "Awakener's orb", source=PAGE, request_id=f"orb1_{uid}")
+            submit(alice.runescape_name, "Awakener's orb", source=BOSS, request_id=f"orb1_{uid}")
             check(status_for(alice.id, orb.id).quantity == 1, "a drop scores")
             check(points_for(alice.runescape_name, leaderboard(botw.id)) == 16, "6 KC + 10 drop = 16")
 
-            submit(alice.runescape_name, "Awakener's orb", source=PAGE, request_id=f"orb2_{uid}")
-            submit(alice.runescape_name, "Awakener's orb", source=PAGE, request_id=f"orb3_{uid}")
+            submit(alice.runescape_name, "Awakener's orb", source=BOSS, request_id=f"orb2_{uid}")
+            submit(alice.runescape_name, "Awakener's orb", source=BOSS, request_id=f"orb3_{uid}")
             check(status_for(alice.id, orb.id).quantity == 3, "duplicate drops score every time")
             check(points_for(alice.runescape_name, leaderboard(botw.id)) == 36, "three orbs are worth 30")
 
             # Stacked drops score per item
-            submit(bob.runescape_name, "Awakener's orb", source=PAGE, quantity=2,
+            submit(bob.runescape_name, "Awakener's orb", source=BOSS, quantity=2,
                    request_id=f"boborb_{uid}")
             check(status_for(bob.id, orb.id).quantity == 2, "a stack of 2 scores twice")
 
-            # Wrong source is not this boss's drop
-            submit(bob.runescape_name, "Awakener's orb", source="Vardorvis",
-                   request_id=f"wrongsrc_{uid}")
-            check(status_for(bob.id, orb.id).quantity == 2, "a drop from another source is ignored")
+            # Triggers are created sourceless, and the handler treats a null
+            # trigger source as matching anything — so the submission's source
+            # is irrelevant. This is the whole point of dropping the default.
+            # Kept off the orb so it does not disturb the ordering assertions.
+            submit(bob.runescape_name, "Chromium ingot", source="Vardorvis",
+                   request_id=f"othersrc_{uid}")
+            check(status_for(bob.id, other_drop.id).quantity == 1,
+                  "a sourceless trigger scores regardless of the submission source",
+                  f"got {status_for(bob.id, other_drop.id)}")
+
+            submit(bob.runescape_name, "Chromium ingot", source=None,
+                   request_id=f"nosrc_{uid}")
+            check(status_for(bob.id, other_drop.id).quantity == 2,
+                  "a submission with no source at all still scores",
+                  f"got {status_for(bob.id, other_drop.id).quantity}")
+
+            submit(bob.runescape_name, BOSS, type="KC", quantity=10, source=None,
+                   request_id=f"nosrckc_{uid}")
+            check(status_for(bob.id, kc_challenge.id) is not None,
+                  "a KC submission with no source scores (it did not before)")
 
             # Unconfigured item
             before = len(ChallengeStatus.query.filter_by(player_id=bob.id).all())
-            submit(bob.runescape_name, f"Not A Real Item {uid}", source=PAGE,
+            submit(bob.runescape_name, f"Not A Real Item {uid}", source=BOSS,
                    request_id=f"unknown_{uid}")
             check(len(ChallengeStatus.query.filter_by(player_id=bob.id).all()) == before,
                   "an unconfigured drop scores nothing")
 
             # Unknown player
-            notifications = submit(f"GhostPlayer_{uid}", "Awakener's orb", source=PAGE,
+            notifications = submit(f"GhostPlayer_{uid}", "Awakener's orb", source=BOSS,
                                    request_id=f"ghost_{uid}")
             check(notifications == [], "a submission from an unknown player is ignored")
 
             # Duplicate request_id
-            submit(bob.runescape_name, "Awakener's orb", source=PAGE, quantity=2,
+            submit(bob.runescape_name, "Awakener's orb", source=BOSS, quantity=2,
                    request_id=f"boborb_{uid}")
             check(status_for(bob.id, orb.id).quantity == 2,
-                  "a replayed request_id does not score twice")
+                  "a replayed request_id does not score twice",
+                  f"got {status_for(bob.id, orb.id).quantity}")
 
             # ================================================================
             # OWNERSHIP ISOLATION
@@ -356,7 +459,7 @@ def run():
                   "standings are ordered by points descending",
                   f"got {[(s['rsn'], s['points']) for s in standings]}")
             check(standings[0]['rank'] == 1 and standings[1]['rank'] == 2, "ranks are assigned")
-            check(standings[0]['bosses'][0]['boss_name'] == PAGE, "per-boss breakdown is present")
+            check(standings[0]['bosses'][0]['boss_name'] == BOSS, "per-boss breakdown is present")
 
             resp = client.get(f"/v2/events/{botw.id}/botw/leaderboard")
             check(resp.status_code == 200, "GET leaderboard returns 200")
@@ -366,13 +469,128 @@ def run():
             check(resp.status_code == 400, "leaderboard on a non-botw event returns 400")
 
             resp = client.get(f"/v2/events/{botw.id}/botw/bosses")
-            check(resp.status_code == 200 and len(json.loads(resp.data)['data']) == 1,
-                  "GET bosses returns the configured boss")
+            check(resp.status_code == 200 and len(json.loads(resp.data)['data']) == 2,
+                  "GET bosses returns both configured bosses")
 
-            resp = client.get("/v2/botw/catalog/pages?category=Bosses")
-            pages = json.loads(resp.data)['data']
-            check(resp.status_code == 200 and any(p['page'] == PAGE for p in pages),
-                  "catalog pages endpoint lists boss pages")
+            check(client.get("/v2/botw/catalog/pages").status_code == 404,
+                  "the collection log catalog endpoint is gone")
+
+            # ================================================================
+            # DROP EDITING
+            # ================================================================
+            print("\n── Drop editing ────────────────────────────────────────────")
+
+            resp = client.post(
+                f"/v2/botw/bosses/{boss.id}/drops",
+                json={"name": f"Added Item {uid}", "points": 7},
+            )
+            check(resp.status_code == 201, "POST drop returns 201", f"got {resp.status_code}")
+            added = next(
+                c for c in Challenge.query.filter_by(parent_challenge_id=boss.challenge_id).all()
+                if Trigger.query.get(c.trigger_id).name == f"Added Item {uid}"
+            )
+            check(added.value == 7, "the added drop carries its points")
+
+            submit(alice.runescape_name, f"Added Item {uid}", request_id=f"added_{uid}")
+            check(status_for(alice.id, added.id).quantity == 1, "a newly added drop scores")
+
+            resp = client.post(f"/v2/botw/bosses/{boss.id}/drops", json={"points": 3})
+            check(resp.status_code == 400, "adding a drop without a name returns 400",
+                  f"got {resp.status_code}")
+
+            # Removing a drop takes its statuses with it, but nothing else.
+            # Hold the id, not the instance: touching an attribute on a deleted
+            # ORM object raises ObjectDeletedError rather than returning None.
+            added_id = added.id
+            orb_before = status_for(alice.id, orb.id).quantity
+            resp = client.delete(f"/v2/botw/drops/{added_id}")
+            check(resp.status_code == 200, "DELETE drop returns 200", f"got {resp.status_code}")
+            db.session.expire_all()
+            check(Challenge.query.filter_by(id=added_id).first() is None,
+                  "the drop challenge is gone")
+            check(ChallengeStatus.query.filter_by(challenge_id=added_id).count() == 0,
+                  "its statuses cascade away")
+            check(status_for(alice.id, orb.id).quantity == orb_before,
+                  "the other drops keep their progress")
+
+            check(client.delete(f"/v2/botw/drops/{uuid.uuid4()}").status_code == 404,
+                  "deleting an unknown drop returns 404")
+            check(client.delete(f"/v2/botw/drops/{boss.challenge_id}").status_code == 404,
+                  "the container challenge is not deletable through the drop route")
+
+            # ================================================================
+            # GENERIC BOSS UPDATE
+            # ================================================================
+            print("\n── Boss update ─────────────────────────────────────────────")
+
+            resp = client.put(
+                f"/v2/botw/bosses/{boss.id}",
+                json={"name": f"Renamed {uid}", "display_order": 9,
+                      "image_url": "https://example.invalid/boss.png"},
+            )
+            check(resp.status_code == 200, "PUT boss returns 200", f"got {resp.status_code}")
+            db.session.expire_all()
+            refreshed = BotwBoss.query.get(boss.id)
+            check(refreshed.name == f"Renamed {uid}", "name is updated")
+            check(refreshed.display_order == 9, "display_order is updated")
+            check(refreshed.image_url == "https://example.invalid/boss.png", "image_url is updated")
+
+            check(client.put(f"/v2/botw/bosses/{uuid.uuid4()}", json={"name": "x"}).status_code == 404,
+                  "PUT on an unknown boss returns 404")
+
+            # ================================================================
+            # OVERLAPPING EVENTS
+            # ================================================================
+            print("\n── Overlapping events ──────────────────────────────────────")
+
+            # A second live botw event. The handler used to resolve the event
+            # with .first(), so whichever row came back swallowed every
+            # submission and this one would score nothing.
+            botw2 = Event(
+                name=f"Test BOTW second {uid}",
+                type="botw",
+                start_date=now - timedelta(hours=1),
+                end_date=now + timedelta(days=7),
+            )
+            db.session.add(botw2)
+            db.session.commit()
+
+            resp = client.post(
+                f"/v2/events/{botw2.id}/botw/bosses",
+                json={"name": f"Second Boss {uid}", "drop_points": 5,
+                      "drops": [{"name": "Awakener's orb"}]},
+            )
+            check(resp.status_code == 201, "second event's boss is created",
+                  f"got {resp.status_code}")
+
+            boss2 = BotwBoss.query.filter_by(event_id=botw2.id).first()
+            orb2 = Challenge.query.filter_by(parent_challenge_id=boss2.challenge_id).filter(
+                Challenge.trigger_id.isnot(None)
+            ).all()
+            orb2 = next(c for c in orb2 if Trigger.query.get(c.trigger_id).name == "Awakener's orb")
+
+            orb1_before = status_for(bob.id, orb.id).quantity
+
+            notifications = submit(bob.runescape_name, "Awakener's orb",
+                                   request_id=f"overlap_{uid}")
+            check(len(notifications) == 2,
+                  "one submission notifies both active events",
+                  f"got {len(notifications)}")
+            check(status_for(bob.id, orb.id).quantity == orb1_before + 1,
+                  "it scores in the first event",
+                  f"got {status_for(bob.id, orb.id).quantity}")
+            check(status_for(bob.id, orb2.id) is not None
+                  and status_for(bob.id, orb2.id).quantity == 1,
+                  "and in the second event too")
+            check(points_for(bob.runescape_name, leaderboard(botw2.id)) == 5,
+                  "the second event scores it at its own point value",
+                  f"got {points_for(bob.runescape_name, leaderboard(botw2.id))}")
+
+            # The dedupe guard is per event, so a replay is still refused
+            submit(bob.runescape_name, "Awakener's orb", request_id=f"overlap_{uid}")
+            check(status_for(bob.id, orb2.id).quantity == 1,
+                  "a replayed request_id is still refused per event",
+                  f"got {status_for(bob.id, orb2.id).quantity}")
 
             # ================================================================
             # WHITELIST
@@ -389,10 +607,11 @@ def run():
             check(resp.status_code == 200, "GET whitelist returns 200",
                   f"got {resp.status_code}: {resp.data[:200]}")
             whitelist = json.loads(resp.data)
-            check(PAGE in whitelist['killCountTriggers'],
+            check(BOSS in whitelist['killCountTriggers'],
                   "boss KC name reaches killCountTriggers")
-            check(f"awakener's orb:{PAGE.lower()}" in [t.lower() for t in whitelist['triggers']],
-                  "boss drops reach the drop whitelist",
+            # Sourceless triggers are whitelisted bare, with no ":source" suffix.
+            check("awakener's orb" in [t.lower() for t in whitelist['triggers']],
+                  "boss drops reach the drop whitelist without a source suffix",
                   f"got {[t for t in whitelist['triggers'] if 'orb' in t.lower()][:5]}")
 
             # ================================================================
@@ -414,7 +633,8 @@ def run():
 
         finally:
             print("\n── Cleanup ─────────────────────────────────────────────────")
-            _cleanup([botw, bingo], [alice, bob])
+            _cleanup([botw, bingo, botw2], [alice, bob])
+            _restore_parked_events(parked)
 
         print("\n" + "=" * 70)
         print(f"  RESULTS: {_pass} passed, {_fail} failed")
