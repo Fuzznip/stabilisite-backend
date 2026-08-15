@@ -1,7 +1,7 @@
 from app import app
 from helper.helpers import ModelEncoder
 from models.models import Events, EventTriggers, EventTriggerMappings
-from models.new_events import Event as NewEvent, Trigger as NewTrigger, Challenge, Task, Tile, Territory, Region
+from models.new_events import Event as NewEvent, Trigger as NewTrigger, BotwBoss, Challenge, Task, Tile, Territory, Region
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -87,7 +87,24 @@ def get_item_whitelist():
         ]
         conquest_triggers = NewTrigger.query.filter(NewTrigger.id.in_(leaf_challenge_ids)).all()
 
-        for trigger in bingo_triggers + conquest_triggers:
+        # Boss of the week path: botw_boss → container challenge → KC/drop leaves
+        botw_container_ids = [
+            b.challenge_id for b in (
+                BotwBoss.query
+                .filter(BotwBoss.event_id.in_(new_event_ids))
+                .filter(BotwBoss.challenge_id.isnot(None))
+                .all()
+            )
+        ]
+        botw_trigger_ids = [
+            c.trigger_id for c in Challenge.query
+            .filter(Challenge.parent_challenge_id.in_(botw_container_ids))
+            .filter(Challenge.trigger_id.isnot(None))
+            .all()
+        ] if botw_container_ids else []
+        botw_triggers = NewTrigger.query.filter(NewTrigger.id.in_(botw_trigger_ids)).all() if botw_trigger_ids else []
+
+        for trigger in bingo_triggers + conquest_triggers + botw_triggers:
             if trigger.type == "DROP":
                 triggerSet.add(f"{trigger.name}:{trigger.source}" if trigger.source else f"{trigger.name}")
             elif trigger.type == "KC":

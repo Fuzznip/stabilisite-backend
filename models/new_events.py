@@ -253,14 +253,20 @@ class TaskStatus(db.Model, Serializer):
 
 
 class ChallengeStatus(db.Model, Serializer):
+    """Progress on a challenge, owned by exactly one of a team or a player.
+
+    Team-owned rows are what bingo and conquest write. Player-owned rows
+    (team_id NULL) are what boss of the week writes, since that event scores
+    individuals. A CHECK constraint enforces exactly-one-owner, and the
+    uniqueness of (owner, challenge) is two partial indexes rather than one
+    constraint — see migration 015.
+    """
     __tablename__ = 'challenge_statuses'
-    __table_args__ = (
-        db.UniqueConstraint('team_id', 'challenge_id', name='challenge_statuses_unique_team_challenge'),
-        {'schema': 'new_stability'}
-    )
+    __table_args__ = {'schema': 'new_stability'}
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='CASCADE'), nullable=False)
+    team_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.teams.id', ondelete='CASCADE'), nullable=True)
+    player_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=True)
     challenge_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenges.id', ondelete='CASCADE'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=0)
     completed = db.Column(db.Boolean, nullable=False, default=False)
@@ -382,6 +388,41 @@ class Territory(db.Model, Serializer):
     # Relationships
     region = db.relationship('Region', back_populates='territories')
     challenge = db.relationship('Challenge', backref=db.backref('territory', uselist=False))
+
+    def serialize(self):
+        return Serializer.serialize(self)
+
+
+# =========================================
+# BOSS OF THE WEEK EVENT MODELS
+# =========================================
+
+class BotwBoss(db.Model, Serializer):
+    """One boss within a boss of the week event.
+
+    An event can run several bosses at once (a DT2 week covers all four awakened
+    bosses). Each boss anchors a container challenge whose children are the KC
+    challenge and one challenge per collection log drop — the same way
+    Territory.challenge_id anchors conquest challenges.
+
+    `name` is what Dink calls the kill (Sol Heredit) and `clog_page` is the
+    collection log page the drops were seeded from (Fortis Colosseum). They are
+    usually equal but not always.
+    """
+    __tablename__ = 'botw_bosses'
+    __table_args__ = {'schema': 'new_stability'}
+
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.events.id', ondelete='CASCADE'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    clog_page = db.Column(db.String(255), nullable=False)
+    image_url = db.Column(db.String(512), nullable=True)
+    display_order = db.Column(db.Integer, nullable=True)
+    challenge_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenges.id', ondelete='SET NULL'), nullable=True, unique=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    # Relationships
+    challenge = db.relationship('Challenge', backref=db.backref('botw_boss', uselist=False))
 
     def serialize(self):
         return Serializer.serialize(self)
