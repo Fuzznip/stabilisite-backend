@@ -6,7 +6,7 @@ from app import db
 from event_handlers.event_handler import (
     EventSubmission, NotificationAuthor, NotificationField, NotificationResponse
 )
-from models.models import Users
+from helper.user_lookup import resolve_user
 from models.new_events import (
     Action, Challenge, ChallengeProof, ChallengeStatus,
     Event, EventLog, Region, Team, TeamMember,
@@ -19,7 +19,7 @@ from services.conquest_service import (
     update_region_control,
     update_territory_control,
 )
-from sqlalchemy import func, text
+from sqlalchemy import text
 
 
 def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
@@ -37,20 +37,7 @@ def conquest_handler(submission: EventSubmission) -> list[NotificationResponse]:
 
     logging.info(f"[CONQUEST] Matched — event={event.name!r} ({event.id})")
 
-    # Resolve user: try rsn → discord_id → alt_names
-    user = None
-    if submission.rsn:
-        normalized = submission.rsn.replace("_", " ").replace("-", " ")
-        user = Users.query.filter(
-            func.lower(func.replace(func.replace(Users.runescape_name, "_", " "), "-", " ")) == normalized.lower()
-        ).first()
-    if not user and submission.id:
-        user = Users.query.filter_by(discord_id=submission.id).first()
-    if not user and submission.rsn:
-        user = Users.query.filter(
-            text("lower(replace(replace(:rsn, '_', ' '), '-', ' ')) = ANY(SELECT lower(replace(replace(x, '_', ' '), '-', ' ')) FROM unnest(alt_names) x)")
-        ).params(rsn=submission.rsn).first()
-
+    user = resolve_user(submission.rsn, submission.id)
     if not user:
         logging.warning(f"[CONQUEST] user not found: rsn={submission.rsn}, discord_id={submission.id}")
         return []

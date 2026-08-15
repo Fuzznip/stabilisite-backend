@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from app import db
 from app import firestore_db
 from event_handlers.event_handler import EventSubmission, NotificationField, NotificationResponse, NotificationAuthor
+from helper.user_lookup import resolve_user
 from models.models import Users
 from models.new_events import (
     Event, Team, TeamMember, Action, Trigger, Tile, Task, Challenge,
@@ -10,7 +11,7 @@ from models.new_events import (
 
 import logging
 import threading
-from sqlalchemy import func, text
+from sqlalchemy import text
 from sqlalchemy.orm import joinedload
 
 
@@ -397,24 +398,7 @@ def bingo_handler(submission: EventSubmission) -> list[NotificationResponse]:
 
     logging.info(f"[BINGO] Matched — event={event.name!r} ({event.id})")
 
-    # Look up user by runescape_name, discord_id, then alt_names (cheapest to most expensive)
-    user = None
-    if submission.rsn:
-        # Normalize underscores and dashes to spaces (WoM and OSRS treat them as equivalent)
-        normalized_rsn = submission.rsn.replace("_", " ").replace("-", " ")
-        # First try exact match on runescape_name (normalize underscores/dashes/spaces on both sides)
-        user = Users.query.filter(
-            func.lower(func.replace(func.replace(Users.runescape_name, "_", " "), "-", " ")) == normalized_rsn.lower()
-        ).first()
-    # Try discord_id before alt_names (indexed lookup vs full table scan)
-    if not user and submission.id:
-        user = Users.query.filter_by(discord_id=submission.id).first()
-    # Alt_names uses unnest (full table scan) — only as last resort
-    if not user and submission.rsn:
-        user = Users.query.filter(
-            text("lower(replace(replace(:rsn, '_', ' '), '-', ' ')) = ANY(SELECT lower(replace(replace(x, '_', ' '), '-', ' ')) FROM unnest(alt_names) x)")
-        ).params(rsn=submission.rsn).first()
-
+    user = resolve_user(submission.rsn, submission.id)
     if not user:
         logging.warning(f"User not found for submission: rsn={submission.rsn}, discord_id={submission.id}")
         return []
