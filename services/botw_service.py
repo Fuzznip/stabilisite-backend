@@ -210,6 +210,7 @@ def leaderboard(event_id) -> list[dict]:
             Trigger.type.label('trigger_type'),
             Trigger.img_path.label('trigger_img_path'),
             ChallengeStatus.quantity.label('quantity'),
+            ChallengeStatus.id.label('status_id'),
             Challenge.value.label('value'),
         )
         .join(Challenge, Challenge.id == ChallengeStatus.challenge_id)
@@ -252,6 +253,9 @@ def leaderboard(event_id) -> list[dict]:
         elif quantity > 0:
             boss['drops'].append({
                 'trigger_id': str(row.trigger_id),
+                # The status this drop's proofs hang off. The site reads its
+                # screenshots from /v2/statuses/challenges/<id>/proofs.
+                'status_id': str(row.status_id),
                 'name': row.trigger_name,
                 'img_path': row.trigger_img_path,
                 'quantity': quantity,
