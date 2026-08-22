@@ -169,6 +169,7 @@ def get_collection_log_recent():
                 "item_name": row.item_name,
                 "source": row.source,
                 "quantity": row.quantity,
+                "screenshot": row.screenshot,
                 "obtained_at": row.timestamp.isoformat() if row.timestamp else None,
             }
             for row, runescape_name in pagination.items
