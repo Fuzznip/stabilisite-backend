@@ -4,6 +4,8 @@ from sqlalchemy import func, distinct
 from sqlalchemy.orm import aliased
 from models.models import CollectionLogItem, CollectionLogDrop, Users
 
+MAX_DROPS_PER_MEMBER = 10
+
 
 @app.route("/collection-log/catalog", methods=['GET'])
 def get_collection_log_catalog():
@@ -52,7 +54,28 @@ def get_collection_log_summary():
 
 @app.route("/collection-log/item/<int:item_id>", methods=['GET'])
 def get_collection_log_item_members(item_id):
-    """Clan members who have received a given item, with counts and dates."""
+    """Clan members who have received a given item, with counts, dates and drops.
+
+    Each member carries their individual drops (newest first) so the site can
+    show the screenshots behind a count. `count` stays authoritative: a member
+    farming one item can have thousands of drops, so the list is capped at
+    MAX_DROPS_PER_MEMBER and may be shorter than the count.
+    """
+    drops_by_member = {}
+    drop_rows = db.session.query(CollectionLogDrop).filter(
+        CollectionLogDrop.item_id == item_id,
+        CollectionLogDrop.discord_id.isnot(None),
+    ).order_by(CollectionLogDrop.timestamp.desc()).all()
+    for drop in drop_rows:
+        member_drops = drops_by_member.setdefault(drop.discord_id, [])
+        if len(member_drops) < MAX_DROPS_PER_MEMBER:
+            member_drops.append({
+                "id": str(drop.id),
+                "screenshot": drop.screenshot,
+                "source": drop.source,
+                "obtained_at": drop.timestamp.isoformat() if drop.timestamp else None,
+            })
+
     rows = db.session.query(
         Users.discord_id,
         Users.runescape_name,
@@ -78,6 +101,7 @@ def get_collection_log_item_members(item_id):
             "count": count,
             "first_obtained": first_obtained.isoformat() if first_obtained else None,
             "last_obtained": last_obtained.isoformat() if last_obtained else None,
+            "drops": drops_by_member.get(discord_id, []),
         }
         for discord_id, runescape_name, discord_avatar_url, rank, count, first_obtained, last_obtained in rows
     ])
