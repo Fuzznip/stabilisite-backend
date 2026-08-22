@@ -39,11 +39,19 @@ def get_collection_log_catalog():
 
 @app.route("/collection-log/summary", methods=['GET'])
 def get_collection_log_summary():
-    """Per-item obtained stats for grid coloring: distinct members + total drops."""
+    """Per-item obtained stats for the grid: distinct members + total drops.
+
+    Both counts ignore drops whose rsn never resolved to a member. /item/<id>
+    inner-joins Users and so can only ever show matched drops; counting the
+    unmatched ones here would put a total on the grid that the dialog can't
+    account for.
+    """
     rows = db.session.query(
         CollectionLogDrop.item_id,
         func.count(distinct(CollectionLogDrop.discord_id)).label("member_count"),
         func.count(CollectionLogDrop.id).label("total_count"),
+    ).filter(
+        CollectionLogDrop.discord_id.isnot(None)
     ).group_by(CollectionLogDrop.item_id).all()
 
     return jsonify([

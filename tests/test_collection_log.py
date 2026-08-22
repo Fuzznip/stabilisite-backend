@@ -126,6 +126,19 @@ def test_item_members_endpoint(test_client, test_user):
     assert data[0]["first_obtained"] is not None
 
 
+def test_summary_excludes_unmatched_drops(test_client, test_user):
+    _submit(test_client)
+    _submit(test_client, rsn="SomeRandom")
+
+    row = next(r for r in test_client.get("/collection-log/summary").get_json()
+               if r["item_id"] == 12922)
+    members = test_client.get("/collection-log/item/12922").get_json()
+
+    assert row["member_count"] == 1
+    assert row["total_count"] == 1
+    assert row["total_count"] == sum(m["count"] for m in members)
+
+
 def test_item_members_endpoint_returns_drops(test_client, test_user):
     _submit(test_client, img_path="https://img.invalid/first.png")
     _submit(test_client, img_path=None)
