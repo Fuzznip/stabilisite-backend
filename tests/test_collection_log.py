@@ -1,6 +1,7 @@
 import pytest
 from app import app, db
 from models.models import Users, CollectionLogItem, CollectionLogDrop
+from endpoints.collection_log import MAX_DROPS_PER_MEMBER
 from datetime import datetime, timezone
 
 
@@ -123,6 +124,73 @@ def test_item_members_endpoint(test_client, test_user):
     assert data[0]["runescape_name"] == "TestUser"
     assert data[0]["count"] == 1
     assert data[0]["first_obtained"] is not None
+
+
+def test_item_members_endpoint_returns_drops(test_client, test_user):
+    _submit(test_client, img_path="https://img.invalid/first.png")
+    _submit(test_client, img_path=None)
+    _submit(test_client, img_path="https://img.invalid/third.png")
+
+    resp = test_client.get("/collection-log/item/12922")
+    data = resp.get_json()
+    member = data[0]
+
+    assert member["count"] == 3
+    assert len(member["drops"]) == 3
+    assert [d["screenshot"] for d in member["drops"]] == [
+        "https://img.invalid/third.png",
+        None,
+        "https://img.invalid/first.png",
+    ]
+    assert all(d["id"] and d["obtained_at"] for d in member["drops"])
+    assert member["drops"][0]["source"] == "Zulrah"
+
+
+def test_item_members_drops_are_scoped_per_member(test_client, test_user):
+    other = Users(
+        discord_id="67890",
+        runescape_name="OtherUser",
+        is_active=True,
+        is_member=True,
+        join_date=datetime.now(timezone.utc),
+        timestamp=datetime.now(timezone.utc),
+    )
+    db.session.add(other)
+    db.session.commit()
+
+    _submit(test_client, img_path="https://img.invalid/mine.png")
+    _submit(test_client, rsn="OtherUser", img_path="https://img.invalid/theirs.png")
+
+    data = test_client.get("/collection-log/item/12922").get_json()
+    by_name = {m["runescape_name"]: m for m in data}
+
+    assert [d["screenshot"] for d in by_name["TestUser"]["drops"]] == [
+        "https://img.invalid/mine.png"
+    ]
+    assert [d["screenshot"] for d in by_name["OtherUser"]["drops"]] == [
+        "https://img.invalid/theirs.png"
+    ]
+
+
+def test_item_members_drops_exclude_other_items(test_client, test_user):
+    _submit(test_client, img_path="https://img.invalid/fang.png")
+    _submit(test_client, trigger="Pet snakeling", item_id=12921,
+            img_path="https://img.invalid/pet.png")
+
+    data = test_client.get("/collection-log/item/12922").get_json()
+    assert len(data[0]["drops"]) == 1
+    assert data[0]["drops"][0]["screenshot"] == "https://img.invalid/fang.png"
+
+
+def test_item_members_drops_are_capped(test_client, test_user):
+    for i in range(13):
+        _submit(test_client, img_path=f"https://img.invalid/{i}.png")
+
+    member = test_client.get("/collection-log/item/12922").get_json()[0]
+
+    assert member["count"] == 13
+    assert len(member["drops"]) == MAX_DROPS_PER_MEMBER
+    assert member["drops"][0]["screenshot"] == "https://img.invalid/12.png"
 
 
 def test_catalog_endpoint_structure(test_client, catalog):
