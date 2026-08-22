@@ -206,6 +206,24 @@ def test_item_members_drops_are_capped(test_client, test_user):
     assert member["drops"][0]["screenshot"] == "https://img.invalid/12.png"
 
 
+def test_recent_endpoint_includes_screenshot(test_client, test_user):
+    _submit(test_client, img_path="https://img.invalid/shot.png")
+
+    items = test_client.get("/collection-log/recent").get_json()["items"]
+
+    assert len(items) == 1
+    assert items[0]["screenshot"] == "https://img.invalid/shot.png"
+    assert items[0]["runescape_name"] == "TestUser"
+
+
+def test_recent_endpoint_screenshot_null_when_absent(test_client, test_user):
+    _submit(test_client)
+
+    items = test_client.get("/collection-log/recent").get_json()["items"]
+
+    assert items[0]["screenshot"] is None
+
+
 def test_catalog_endpoint_structure(test_client, catalog):
     resp = test_client.get("/collection-log/catalog")
     assert resp.status_code == 200
