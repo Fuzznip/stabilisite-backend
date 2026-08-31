@@ -342,7 +342,7 @@ def run():
             check(status is not None and status.quantity == 1,
                   "a KC submission of quantity=143 advances progress by 1 kill",
                   f"got {status.quantity if status else None}")
-            check(len(notifications) == 1, "KC submission produces a notification")
+            check(notifications == [], "KC submission scores silently (no channel notification)")
             check(points_for(alice.runescape_name, leaderboard(botw.id)) == 3,
                   "one kill is worth kc_points")
 
