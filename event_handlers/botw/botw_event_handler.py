@@ -205,10 +205,7 @@ def _get_or_create_status(player_id, challenge_id) -> ChallengeStatus:
 
 
 def _build_notifications(event, user, submission, scored) -> list[NotificationResponse]:
-    # KC points still count toward the score, but announcing every kill spams
-    # the channel — only drops are worth a message.
-    is_kc = all(trigger.type == 'KC' for _, trigger, _ in scored)
-    if is_kc:
+    if all(trigger.type == 'KC' for _, trigger, _ in scored):
         return []
 
     earned = sum(points for _, _, points in scored)
