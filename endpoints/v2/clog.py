@@ -10,6 +10,7 @@ from services.clog_service import (
     event_slots,
     progress,
     serialize_slot,
+    team_players,
 )
 
 
@@ -44,6 +45,20 @@ def get_clog_progress(event_id):
         return err
 
     return json.dumps(progress(event.id), cls=ModelEncoder), 200
+
+
+@app.route('/v2/events/<event_id>/clog/players', methods=['GET'])
+def get_clog_players(event_id):
+    """Each team's roster with the slots every player personally claimed.
+
+    Players with nothing yet are included with an empty drop list — during a race
+    the roster is as interesting as the scoreboard.
+    """
+    event, err = _require_clog_event(event_id)
+    if err:
+        return err
+
+    return json.dumps({'data': team_players(event.id)}, cls=ModelEncoder), 200
 
 
 @app.route('/v2/events/<event_id>/clog/generate', methods=['POST'])
