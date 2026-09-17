@@ -10,6 +10,7 @@ one between two runs would make a later re-tier rewrite an earlier run's scores
 and a later prune cascade away its statuses.
 """
 from app import db
+from sqlalchemy import text
 from models.models import CollectionLogItem
 from models.new_events import Challenge, ChallengeStatus, ClogSlot, Team, Trigger
 from services.triggers import get_or_create_trigger
@@ -170,3 +171,91 @@ def delete_slot(slot: ClogSlot) -> None:
     if challenge_id:
         Challenge.query.filter_by(id=challenge_id).delete(synchronize_session=False)
     db.session.commit()
+
+
+def team_players(event_id) -> list[dict]:
+    """Every team's roster, each player with the slots they personally claimed.
+
+    Starts from team_members and LEFT JOINs the drops, so a player who has
+    claimed nothing still appears with an empty list — a roster that silently
+    omitted its quiet half would be worse than useless during a race.
+
+    Attribution comes from the proof: a completed slot has exactly one
+    ChallengeProof (duplicates are ignored on the way in), and that proof points
+    at the Action carrying the player who got it.
+    """
+    rows = db.session.execute(text("""
+        WITH drops AS (
+            SELECT
+                cs.team_id,
+                a.player_id,
+                s.name        AS item_name,
+                s.item_id,
+                s.page,
+                ch.value      AS points,
+                cp.img_path,
+                cp.created_at
+            FROM new_stability.challenge_statuses cs
+            JOIN new_stability.challenge_proofs cp ON cp.challenge_status_id = cs.id
+            JOIN new_stability.actions          a  ON a.id = cp.action_id
+            JOIN new_stability.challenges       ch ON ch.id = cs.challenge_id
+            JOIN new_stability.clog_slots       s  ON s.challenge_id = ch.id
+            WHERE s.event_id = :event_id
+              AND cs.completed IS TRUE
+              AND cs.team_id IS NOT NULL
+        )
+        SELECT
+            t.id            AS team_id,
+            t.name          AS team_name,
+            t.color         AS team_color,
+            t.image_url     AS team_image_url,
+            u.id            AS player_id,
+            u.runescape_name AS player_name,
+            d.item_name, d.item_id, d.page, d.points, d.img_path, d.created_at
+        FROM new_stability.team_members tm
+        JOIN new_stability.teams t ON t.id = tm.team_id
+        JOIN users              u ON u.id = tm.user_id
+        LEFT JOIN drops        d ON d.team_id = tm.team_id AND d.player_id = u.id
+        WHERE t.event_id = :event_id
+        ORDER BY t.name, u.runescape_name
+    """), {"event_id": str(event_id)}).mappings().all()
+
+    teams: dict = {}
+    for row in rows:
+        team = teams.setdefault(str(row['team_id']), {
+            'team_id': str(row['team_id']),
+            'team_name': row['team_name'],
+            'team_color': row['team_color'],
+            'team_image_url': row['team_image_url'],
+            'players': {},
+        })
+        player = team['players'].setdefault(str(row['player_id']), {
+            'player_id': str(row['player_id']),
+            'player_name': row['player_name'],
+            'points': 0,
+            'drops': [],
+        })
+        if row['item_name'] is None:
+            continue
+        player['points'] += int(row['points'] or 0)
+        player['drops'].append({
+            'item_name': row['item_name'],
+            'item_id': row['item_id'],
+            'page': row['page'],
+            'points': int(row['points'] or 0),
+            'img_path': row['img_path'],
+            'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+        })
+
+    result = []
+    for team in teams.values():
+        players = sorted(
+            team['players'].values(),
+            key=lambda p: (-p['points'], p['player_name'].lower()),
+        )
+        for p in players:
+            p['drops'].sort(key=lambda d: (-d['points'], d['item_name'].lower()))
+        result.append({**team, 'players': players})
+
+    result.sort(key=lambda t: t['team_name'].lower())
+    return result

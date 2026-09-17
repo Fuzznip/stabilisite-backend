@@ -32,13 +32,16 @@ _pass = 0
 _fail = 0
 
 # A miniature catalog. Dragon pickaxe is deliberately on two Bosses pages, so
-# dedupe has something to collapse; Twisted bow is Raids and Oathplate helm is
-# Yama, so both 3-point rules have a case.
+# dedupe has something to collapse; Twisted bow is Raids and the boss-page item
+# sits on whichever page the service currently tiers as high value, so both
+# 3-point rules have a case. Binding to the constant rather than naming a page
+# keeps the suite honest when that tier is re-pointed (it was Yama, now Nex).
+HIGH_VALUE_PAGE = clog_service.HIGH_VALUE_PAGES[0]
 CATALOG = [
     dict(item_id=11920, name="Dragon pickaxe", category="Bosses", page="Callisto and Artio", page_order=5, sequence=2),
     dict(item_id=11920, name="Dragon pickaxe", category="Bosses", page="King Black Dragon", page_order=2, sequence=1),
     dict(item_id=12922, name="Tanzanite fang", category="Bosses", page="Zulrah", page_order=9, sequence=0),
-    dict(item_id=30750, name="Oathplate helm", category="Bosses", page="Yama", page_order=8, sequence=0),
+    dict(item_id=30750, name="Oathplate helm", category="Bosses", page=HIGH_VALUE_PAGE, page_order=8, sequence=0),
     dict(item_id=20997, name="Twisted bow", category="Raids", page="Chambers of Xeric", page_order=1, sequence=0),
     dict(item_id=4151, name="Abyssal whip", category="Other", page="Slayer", page_order=1, sequence=0),
 ]
@@ -146,7 +149,9 @@ def run():
                 for s in slots
             }
             check(points[20997] == 3, "raids items are worth 3", f"got {points[20997]}")
-            check(points[30750] == 3, "Yama items are worth 3", f"got {points[30750]}")
+            check(points[30750] == 3,
+                  f"items on the high-value page ({HIGH_VALUE_PAGE}) are worth 3",
+                  f"got {points[30750]}")
             check(points[12922] == 1, "other boss items are worth 1", f"got {points[12922]}")
             check(points[11920] == 1, "a deduped boss item is worth 1", f"got {points[11920]}")
 
@@ -227,8 +232,8 @@ def run():
                   "a KC submission scores nothing")
 
             # Sourceless triggers must match whatever source Dink reports.
-            check(len(submit("Clog Alice", "Oathplate helm", source="Yama")) == 1,
-                  "a Yama drop scores")
+            check(len(submit("Clog Alice", "Oathplate helm", source=HIGH_VALUE_PAGE)) == 1,
+                  f"a {HIGH_VALUE_PAGE} drop scores")
             check(team_points(scoring.id, red.id) == 6, "and is worth 3",
                   f"got {team_points(scoring.id, red.id)}")
 
@@ -245,13 +250,13 @@ def run():
                   f"got {team_points(scoring.id, red.id)}")
 
             print("\n── Replay and overlap ──────────────────────────────────────")
-            # Blue has not yet completed Oathplate helm (item_id 30750) or
+            # Blue has not yet completed the high-value item (30750) or
             # Tanzanite fang (item_id 12922). Score the first under an explicit
             # request_id, then replay that SAME request_id against a different
             # item name — this exercises resolve_action's replay detection
             # itself, rather than the earlier "already completed" short-circuit.
             replay_id = str(uuid.uuid4())
-            notes = submit("Clog Carol", "Oathplate helm", source="Yama", request_id=replay_id)
+            notes = submit("Clog Carol", "Oathplate helm", source=HIGH_VALUE_PAGE, request_id=replay_id)
             check(len(notes) == 1, "the first submission under a fresh request_id scores")
             after_first = team_points(scoring.id, blue.id)
 
@@ -384,6 +389,34 @@ def run():
                 resp = client.post(f"/v2/events/{generated.id}/clog/generate")
                 check(resp.status_code == 409, "a second generate call is refused",
                       f"got {resp.status_code}")
+
+            print("\n── Roster attribution ───────────────────────────────────────")
+            # Who on the team actually landed what. The interesting case is Bob:
+            # he submitted a Twisted bow that scored nothing because Alice had
+            # already completed that slot for Red, so he must still appear on the
+            # roster with no drops rather than vanishing from it.
+            roster = clog_service.team_players(scoring.id)
+            by_team = {t['team_name']: t for t in roster}
+            check(set(by_team) == {"Red", "Blue"},
+                  "every team in the event appears in the roster",
+                  f"got {sorted(by_team)}")
+
+            red_players = {p['player_name']: p for p in by_team['Red']['players']}
+            check(set(red_players) == {"Clog Alice", "Clog Bob"},
+                  "every member appears, including one who scored nothing",
+                  f"got {sorted(red_players)}")
+            check(red_players["Clog Bob"]['drops'] == [] and red_players["Clog Bob"]['points'] == 0,
+                  "the teammate whose duplicate scored nothing has no drops",
+                  f"got {red_players['Clog Bob']}")
+            check(len(red_players["Clog Alice"]['drops']) > 0,
+                  "the player who actually completed slots has them attributed",
+                  f"got {red_players['Clog Alice']['drops']}")
+            check(red_players["Clog Alice"]['points'] ==
+                  sum(d['points'] for d in red_players["Clog Alice"]['drops']),
+                  "a player's points are the sum of their own drops")
+            check([p['player_name'] for p in by_team['Red']['players']][0] == "Clog Alice",
+                  "players sort by points, highest first",
+                  f"got {[p['player_name'] for p in by_team['Red']['players']]}")
 
             print("\n── Per-event isolation ──────────────────────────────────────")
             # The handler scores every active clog event inside its own try/except so
