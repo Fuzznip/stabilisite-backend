@@ -426,6 +426,50 @@ class BotwBoss(db.Model, Serializer):
         return Serializer.serialize(self)
 
 
+# =========================================
+# COLLECTION LOG RACE EVENT MODELS
+# =========================================
+
+class ClogSlot(db.Model, Serializer):
+    """One collection log slot within a collection log race event.
+
+    A slot's identity is its OSRS item_id, not its page: an item that appears on
+    several boss pages (Dragon pickaxe, Awakener's orb) is one slot, scored once.
+    `page`/`page_order`/`sequence` are the display home only and never affect
+    scoring.
+
+    The catalog fields are copied from CollectionLogItem rather than joined,
+    because scripts/seed_collection_log.py truncates and re-inserts that table on
+    every run — a join would let a re-seed move a running event's slots.
+
+    challenge_id anchors the scoring challenge the way Territory.challenge_id and
+    BotwBoss.challenge_id do. Points live on that Challenge's `value`.
+    """
+    __tablename__ = 'clog_slots'
+    __table_args__ = (
+        db.UniqueConstraint('event_id', 'item_id', name='clog_slots_unique_item_per_event'),
+        db.Index('idx_clog_slots_event', 'event_id'),
+        {'schema': 'new_stability'}
+    )
+
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.events.id', ondelete='CASCADE'), nullable=False)
+    item_id = db.Column(db.Integer, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    page = db.Column(db.String(255), nullable=False)
+    page_order = db.Column(db.Integer, nullable=False, default=0)
+    sequence = db.Column(db.Integer, nullable=False, default=0)
+    image_url = db.Column(db.String(512))
+    challenge_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.challenges.id', ondelete='SET NULL'), nullable=True, unique=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    challenge = db.relationship('Challenge', backref=db.backref('clog_slot', uselist=False))
+
+    def serialize(self):
+        return Serializer.serialize(self)
+
+
 class EventLog(db.Model, Serializer):
     __tablename__ = 'event_logs'
     __table_args__ = (

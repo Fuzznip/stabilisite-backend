@@ -1,14 +1,17 @@
 """Seed the collection_log_items catalog table from the catalog published to S3.
 
-Idempotent full refresh: clears the catalog and re-inserts every placement. The
-drops table (collection_log_drops) references item ids directly and is untouched.
+Idempotent full refresh: clears the catalog and re-inserts every placement.
+Existing clog_slots rows are unaffected: a collection log race event copies the
+catalog fields it needs at creation time rather than joining to this table, so a
+re-seed mid-event cannot move a running event's slots.
 
-Once seeded, the table is the only source of collection log structure: it backs
-both /collection-log/catalog (the website) and /collection-log/items (the filter
-stabiliserver uses to decide which drops to forward). Those must agree, which is
-why they read the same rows.
+Once seeded, the table is the only source of collection log structure, and it is
+read directly through SQLAlchemy by services/clog_service.py when a collection
+log race event is created. GET /collection-log/catalog also serves these rows,
+though nothing consumes it now that the site reads /v2/events/<id>/clog/slots —
+it is kept as a read-only way to inspect the catalog after a re-seed.
 
-Run:  PYTHONPATH=. python scripts/seed_collection_log.py
+Run:  PYTHONPATH=. .venv/bin/python scripts/seed_collection_log.py
 
 The catalog is not committed. It is generated from the game cache by the website
 repo's ./scripts/cache/extract.sh and published with ./scripts/cache/publish.sh.
@@ -19,8 +22,9 @@ It must come from the cache, which reads the collection log enums the client
 itself uses. An earlier version scraped the OSRS Wiki, which disagrees on 18 item
 ids for the same items (Tea flask 25617 vs 10859, Unsired 25624 vs 13273, the
 satchels, the Prospector set) and omits Venator fang/tooth entirely. Because
-these rows also drive /collection-log/items, ids that don't match what the game
-reports make stabiliserver discard those drops silently.
+these rows also drive /collection-log/catalog and the collection log race
+generator, ids that don't match what the game reports would surface the wrong
+items to players.
 """
 import json
 import sys

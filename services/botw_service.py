@@ -15,6 +15,7 @@ Nothing here reads CollectionLogItem.
 from app import db
 from models.models import Users
 from models.new_events import BotwBoss, Challenge, ChallengeStatus, Trigger
+from services.triggers import get_or_create_trigger
 from sqlalchemy import func, null
 
 # Dink reports a kill count as the player's *total* kills at that boss, so
@@ -24,37 +25,6 @@ KC_COUNT_PER_ACTION = 1
 
 # A challenge with a NULL quantity accumulates forever and never completes.
 REPEATABLE = null()
-
-
-def get_or_create_trigger(
-    name: str,
-    source: str | None = None,
-    type: str = 'DROP',
-    wiki_id: int | None = None,
-    img_path: str | None = None,
-) -> Trigger:
-    """Triggers are global and shared across events, keyed by (name, source).
-
-    `source` defaults to None on purpose. The handler treats a sourceless
-    trigger as matching any submission source, so scoring keys on the item name
-    alone — which is what lets a KC submission score without Dink's `source`
-    lining up exactly.
-    """
-    trigger = Trigger.query.filter_by(name=name, source=source).first()
-    if trigger:
-        # Backfill fields a hand-made trigger may be missing. Only ever fill a
-        # null: triggers are shared, so overwriting one event's icon from
-        # another event's payload would be wrong.
-        if wiki_id is not None and trigger.wiki_id is None:
-            trigger.wiki_id = wiki_id
-        if img_path is not None and trigger.img_path is None:
-            trigger.img_path = img_path
-        return trigger
-
-    trigger = Trigger(name=name, source=source, type=type, wiki_id=wiki_id, img_path=img_path)
-    db.session.add(trigger)
-    db.session.flush()
-    return trigger
 
 
 def _add_drop_challenge(

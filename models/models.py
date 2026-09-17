@@ -404,7 +404,8 @@ class EventLog(db.Model, Serializer):
 class CollectionLogItem(db.Model, Serializer):
     """Catalog of OSRS collection log slots (the in-game clog structure).
 
-    Seeded from the OSRS Wiki. An item can appear on multiple pages (e.g. shared
+    Seeded from the game cache (NOT the OSRS Wiki, which disagrees on 18 item ids —
+    see scripts/seed_collection_log.py). An item can appear on multiple pages (e.g. shared
     clue rewards, pets that also show under 'All Pets'), so item_id is NOT the
     primary key; the natural key is (item_id, page).
     """
@@ -425,28 +426,4 @@ class CollectionLogItem(db.Model, Serializer):
     def serialize(self):
         return Serializer.serialize(self)
 
-class CollectionLogDrop(db.Model, Serializer):
-    """A single collection-log-eligible item received by a player (via Dink LOOT).
-
-    One row per received drop (duplicates kept) so we can show per-member counts
-    and first/last dates. discord_id is nullable when the RSN can't be matched to
-    a member. item_id is a plain indexed column (no FK: collection_log_items.item_id
-    is non-unique because of multi-page items).
-    """
-    __tablename__ = 'collection_log_drops'
-    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    discord_id = db.Column(db.String, db.ForeignKey('users.discord_id', ondelete="CASCADE"))
-    rsn = db.Column(db.String, nullable=False)
-    item_id = db.Column(db.Integer, nullable=False, index=True)   # OSRS item id
-    item_name = db.Column(db.String)
-    source = db.Column(db.String)
-    quantity = db.Column(db.Integer, nullable=False, default=1)
-    value = db.Column(db.Integer, default=0)
-    screenshot = db.Column(db.String)
-    # Callable, not a call: `default=datetime.now(...)` is evaluated once at
-    # import, so every row would be stamped with the server's start time.
-    timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.datetime.now(datetime.timezone.utc))
-
-    def serialize(self):
-        return Serializer.serialize(self)
     

@@ -1,7 +1,8 @@
 from app import app
 from helper.helpers import ModelEncoder
 from models.models import Events, EventTriggers, EventTriggerMappings
-from models.new_events import Event as NewEvent, Trigger as NewTrigger, BotwBoss, Challenge, Task, Tile, Territory, Region
+from models.new_events import Event as NewEvent
+from services.triggers import triggers_for_events
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -49,62 +50,7 @@ def get_item_whitelist():
     if new_events:
         new_event_ids = [event.id for event in new_events]
 
-        # Bingo path: Trigger → Challenge → Task → Tile
-        bingo_triggers = (
-            NewTrigger.query
-            .join(Challenge, Challenge.trigger_id == NewTrigger.id)
-            .join(Task, Task.id == Challenge.task_id)
-            .join(Tile, Tile.id == Task.tile_id)
-            .filter(Tile.event_id.in_(new_event_ids))
-            .all()
-        )
-
-        # Conquest path: handles flat, 2-level (root→leaf), and 3-level (root→group→leaf)
-        territory_root_ids = [
-            t.challenge_id for t in (
-                Territory.query
-                .join(Region, Region.id == Territory.region_id)
-                .filter(Region.event_id.in_(new_event_ids))
-                .filter(Territory.challenge_id.isnot(None))
-                .all()
-            )
-        ]
-        mid_ids = [
-            c.id for c in Challenge.query
-            .filter(Challenge.parent_challenge_id.in_(territory_root_ids))
-            .filter(Challenge.trigger_id.is_(None))
-            .all()
-        ]
-        leaf_challenge_ids = [
-            c.trigger_id for c in Challenge.query
-            .filter(Challenge.trigger_id.isnot(None))
-            .filter(
-                Challenge.id.in_(territory_root_ids)
-                | Challenge.parent_challenge_id.in_(territory_root_ids)
-                | Challenge.parent_challenge_id.in_(mid_ids)
-            )
-            .all()
-        ]
-        conquest_triggers = NewTrigger.query.filter(NewTrigger.id.in_(leaf_challenge_ids)).all()
-
-        # Boss of the week path: botw_boss → container challenge → KC/drop leaves
-        botw_container_ids = [
-            b.challenge_id for b in (
-                BotwBoss.query
-                .filter(BotwBoss.event_id.in_(new_event_ids))
-                .filter(BotwBoss.challenge_id.isnot(None))
-                .all()
-            )
-        ]
-        botw_trigger_ids = [
-            c.trigger_id for c in Challenge.query
-            .filter(Challenge.parent_challenge_id.in_(botw_container_ids))
-            .filter(Challenge.trigger_id.isnot(None))
-            .all()
-        ] if botw_container_ids else []
-        botw_triggers = NewTrigger.query.filter(NewTrigger.id.in_(botw_trigger_ids)).all() if botw_trigger_ids else []
-
-        for trigger in bingo_triggers + conquest_triggers + botw_triggers:
+        for trigger in triggers_for_events(new_event_ids):
             if trigger.type == "DROP":
                 triggerSet.add(f"{trigger.name}:{trigger.source}" if trigger.source else f"{trigger.name}")
             elif trigger.type == "KC":
