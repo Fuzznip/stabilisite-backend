@@ -18,7 +18,7 @@ from services.triggers import get_or_create_trigger
 CLOG_CATEGORIES = ('Bosses', 'Raids')
 
 # Boss pages whose drops are worth the raids rate.
-HIGH_VALUE_PAGES = ('Yama',)
+HIGH_VALUE_PAGES = ('Nex',)
 
 # The Raids tab is worth the high rate in full; on the Bosses tab only these pages are.
 HIGH_VALUE_CATEGORY = 'Raids'
