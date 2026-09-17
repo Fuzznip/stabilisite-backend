@@ -18,8 +18,9 @@ from event_handlers.event_handler import (
 )
 from helper.user_lookup import resolve_user
 from models.new_events import (
-    Action, BotwBoss, Challenge, ChallengeProof, ChallengeStatus, Event, Trigger,
+    BotwBoss, Challenge, ChallengeProof, ChallengeStatus, Event, Trigger,
 )
+from services.actions import resolve_action
 from services.botw_service import player_points
 from sqlalchemy import text
 
@@ -87,7 +88,7 @@ def _score_event(event, submission: EventSubmission, user, now) -> list[Notifica
     ).all()
     triggers_by_id = {t.id: t for t in triggers}
 
-    action, already_scored = _resolve_action(submission, user, container_ids, now)
+    action, already_scored = resolve_action(submission, user, now, container_ids, by_parent=True)
     if already_scored:
         logging.warning(f"[BOTW] duplicate request_id={submission.request_id!r}, skipping")
         return []
@@ -142,46 +143,6 @@ def _score_event(event, submission: EventSubmission, user, now) -> list[Notifica
         return []
 
     return _build_notifications(event, user, submission, scored)
-
-
-def _resolve_action(submission: EventSubmission, user, container_ids, now) -> tuple[Action, bool]:
-    """Get the Action for this submission, and whether we already scored it.
-
-    Other handlers write the same action rows, and `actions.request_id` is
-    globally unique — so when a conquest or bingo event is running alongside
-    this one, the action for a submission already exists by the time we get
-    here. Inserting a second one would abort the transaction and silently drop
-    the score. Reuse it instead, and detect real duplicates by checking whether
-    that action already produced proofs against *this* event's challenges.
-    """
-    existing = Action.query.filter_by(request_id=submission.request_id).first() if submission.request_id else None
-
-    if existing:
-        already_scored = db.session.query(
-            ChallengeProof.query
-            .join(ChallengeStatus, ChallengeStatus.id == ChallengeProof.challenge_status_id)
-            .join(Challenge, Challenge.id == ChallengeStatus.challenge_id)
-            .filter(
-                ChallengeProof.action_id == existing.id,
-                Challenge.parent_challenge_id.in_(container_ids),
-            )
-            .exists()
-        ).scalar()
-        return existing, bool(already_scored)
-
-    action = Action(
-        player_id=user.id,
-        type=submission.type,
-        name=submission.trigger,
-        source=submission.source,
-        quantity=submission.quantity,
-        value=submission.totalValue,
-        date=now,
-        request_id=submission.request_id,
-    )
-    db.session.add(action)
-    db.session.flush()
-    return action, False
 
 
 def _get_or_create_status(player_id, challenge_id) -> ChallengeStatus:
