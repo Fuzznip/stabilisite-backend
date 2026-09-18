@@ -418,6 +418,41 @@ def run():
                   "players sort by points, highest first",
                   f"got {[p['player_name'] for p in by_team['Red']['players']]}")
 
+            print("\n── Activity feed ────────────────────────────────────────────")
+            # Red and Blue both claimed Twisted bow (teams do not block each
+            # other), so the unscoped feed must carry BOTH completions while a
+            # team-scoped one carries only its own.
+            feed = clog_service.recent_completions(scoring.id, per_page=50)
+            check(feed['total'] == len(feed['items']),
+                  "the feed reports as many rows as it returns on one page",
+                  f"total={feed['total']} len={len(feed['items'])}")
+            tbows = [i for i in feed['items'] if i['item_name'] == "Twisted bow"]
+            check(len(tbows) == 2,
+                  "both teams' claims of the same slot appear as separate rows",
+                  f"got {len(tbows)}")
+            check({t['team_name'] for t in tbows} == {"Red", "Blue"},
+                  "and they are attributed to the right teams",
+                  f"got {[t['team_name'] for t in tbows]}")
+            stamps = [i['created_at'] for i in feed['items'] if i['created_at']]
+            check(stamps == sorted(stamps, reverse=True),
+                  "the feed is newest first",
+                  f"got {stamps[:3]}")
+            check(all(i['img_path'] and i['status_id'] for i in feed['items']),
+                  "every row carries its screenshot and status id")
+
+            red_feed = clog_service.recent_completions(scoring.id, per_page=50, team_id=red.id)
+            check(all(i['team_name'] == "Red" for i in red_feed['items']),
+                  "scoping to a team returns only that team's claims",
+                  f"got {sorted({i['team_name'] for i in red_feed['items']})}")
+            check(red_feed['total'] < feed['total'],
+                  "and fewer rows than the whole event",
+                  f"{red_feed['total']} vs {feed['total']}")
+
+            paged = clog_service.recent_completions(scoring.id, page=1, per_page=1)
+            check(len(paged['items']) == 1 and paged['has_next'] and not paged['has_prev'],
+                  "pagination reports has_next on the first of several pages",
+                  f"got {paged['pages']} pages, has_next={paged['has_next']}")
+
             print("\n── Per-event isolation ──────────────────────────────────────")
             # The handler scores every active clog event inside its own try/except so
             # that one event blowing up cannot cost the others their score. Two active

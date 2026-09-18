@@ -259,3 +259,76 @@ def team_players(event_id) -> list[dict]:
 
     result.sort(key=lambda t: t['team_name'].lower())
     return result
+
+
+def recent_completions(event_id, page: int = 1, per_page: int = 20, team_id=None) -> dict:
+    """Newest-first feed of slots claimed in this event, optionally one team's.
+
+    One row per completion rather than per submission: duplicates never create a
+    proof, so every row here is a slot a team took for the first time.
+
+    Paginated because a five-day race across sixty players runs to hundreds of
+    entries, and the interesting ones are not always the newest.
+    """
+    where = "WHERE s.event_id = :event_id AND cs.completed IS TRUE AND cs.team_id IS NOT NULL"
+    params = {"event_id": str(event_id)}
+    if team_id:
+        where += " AND cs.team_id = :team_id"
+        params["team_id"] = str(team_id)
+
+    total = db.session.execute(text(f"""
+        SELECT COUNT(*)
+        FROM new_stability.challenge_statuses cs
+        JOIN new_stability.challenge_proofs cp ON cp.challenge_status_id = cs.id
+        JOIN new_stability.challenges       ch ON ch.id = cs.challenge_id
+        JOIN new_stability.clog_slots       s  ON s.challenge_id = ch.id
+        {where}
+    """), params).scalar() or 0
+
+    rows = db.session.execute(text(f"""
+        SELECT
+            cp.id            AS proof_id,
+            cs.id            AS status_id,
+            s.item_id, s.name AS item_name, s.page,
+            ch.value         AS points,
+            u.runescape_name AS player_name,
+            t.id             AS team_id,
+            t.name           AS team_name,
+            t.color          AS team_color,
+            cp.img_path,
+            cp.created_at
+        FROM new_stability.challenge_statuses cs
+        JOIN new_stability.challenge_proofs cp ON cp.challenge_status_id = cs.id
+        JOIN new_stability.actions          a  ON a.id = cp.action_id
+        JOIN users                          u  ON u.id = a.player_id
+        JOIN new_stability.teams            t  ON t.id = cs.team_id
+        JOIN new_stability.challenges       ch ON ch.id = cs.challenge_id
+        JOIN new_stability.clog_slots       s  ON s.challenge_id = ch.id
+        {where}
+        ORDER BY cp.created_at DESC, s.name
+        LIMIT :limit OFFSET :offset
+    """), {**params, "limit": per_page, "offset": (page - 1) * per_page}).mappings().all()
+
+    pages = (total + per_page - 1) // per_page if per_page else 0
+    return {
+        "items": [{
+            "id": str(r["proof_id"]),
+            "status_id": str(r["status_id"]),
+            "item_id": r["item_id"],
+            "item_name": r["item_name"],
+            "page": r["page"],
+            "points": int(r["points"] or 0),
+            "player_name": r["player_name"],
+            "team_id": str(r["team_id"]),
+            "team_name": r["team_name"],
+            "team_color": r["team_color"],
+            "img_path": r["img_path"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        } for r in rows],
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "pages": pages,
+        "has_next": page < pages,
+        "has_prev": page > 1,
+    }

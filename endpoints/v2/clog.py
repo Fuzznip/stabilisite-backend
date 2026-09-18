@@ -9,6 +9,7 @@ from services.clog_service import (
     delete_slot,
     event_slots,
     progress,
+    recent_completions,
     serialize_slot,
     team_players,
 )
@@ -59,6 +60,23 @@ def get_clog_players(event_id):
         return err
 
     return json.dumps({'data': team_players(event.id)}, cls=ModelEncoder), 200
+
+
+@app.route('/v2/events/<event_id>/clog/recent', methods=['GET'])
+def get_clog_recent(event_id):
+    """Newest-first activity feed, optionally scoped to one team."""
+    event, err = _require_clog_event(event_id)
+    if err:
+        return err
+
+    page = max(1, request.args.get('page', 1, type=int))
+    per_page = min(100, max(1, request.args.get('per_page', 20, type=int)))
+    team_id = request.args.get('team_id') or None
+
+    return json.dumps(
+        recent_completions(event.id, page=page, per_page=per_page, team_id=team_id),
+        cls=ModelEncoder,
+    ), 200
 
 
 @app.route('/v2/events/<event_id>/clog/generate', methods=['POST'])
