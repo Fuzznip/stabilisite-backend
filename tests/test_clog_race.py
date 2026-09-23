@@ -163,6 +163,66 @@ def run():
             check(all(c.trigger_id is not None for c in challenges),
                   "every slot challenge has a trigger")
 
+            print("\n── Placements ──────────────────────────────────────────────")
+            placements = clog_service.slot_placements(event.id)
+            pick = placements[11920]
+            check(len(pick) == 2, "a multi-page item reports every page it sits on",
+                  f"got {[p['page'] for p in pick]}")
+            check([p['page'] for p in pick] == ["King Black Dragon", "Callisto and Artio"],
+                  "placements come back in (page_order, sequence) order",
+                  f"got {[p['page'] for p in pick]}")
+            check([p['page'] for p in placements[12922]] == ["Zulrah"],
+                  "a single-page item reports exactly its one page",
+                  f"got {[p['page'] for p in placements[12922]]}")
+            check(all(pl['page'] == by_item[item_id].page for item_id, (pl, *_) in placements.items()),
+                  "the slot's stored home is always the first placement")
+
+            serialized = {
+                slot.item_id: clog_service.serialize_slot(slot, challenge,
+                                                          placements.get(slot.item_id))
+                for slot, challenge in clog_service.event_slots(event.id)
+            }
+            check(len(serialized) == 4, "serialising still yields one entry per scored slot",
+                  f"got {len(serialized)}")
+            check(len(serialized[11920]['placements']) == 2,
+                  "the serialised slot carries its placements",
+                  f"got {serialized[11920]['placements']}")
+            check(serialized[11920]['page'] == "King Black Dragon",
+                  "and its scoring home is untouched", f"got {serialized[11920]['page']!r}")
+            check(clog_service.serialize_slot(*next(iter(clog_service.event_slots(event.id))))
+                  ['placements'],
+                  "serialising without a placements map still reports the home page")
+
+            # seed_collection_log.py truncates and re-inserts the catalog on every
+            # run, so a live event has to survive one moving underneath it. A new
+            # placement for an item the event already scores is picked up without
+            # regenerating slots; a new *item* is not, which is what keeps the
+            # scored set frozen.
+            db.session.add_all([
+                CollectionLogItem(item_id=11920, name="Dragon pickaxe", category="Bosses",
+                                  page="Later Boss", page_order=99, sequence=0),
+                CollectionLogItem(item_id=26370, name="Latecomer", category="Bosses",
+                                  page="Later Boss", page_order=99, sequence=1),
+            ])
+            db.session.commit()
+            after_reseed = clog_service.slot_placements(event.id)
+            check([p['page'] for p in after_reseed[11920]]
+                  == ["King Black Dragon", "Callisto and Artio", "Later Boss"],
+                  "a placement the catalog gains shows up without rebuilding slots",
+                  f"got {[p['page'] for p in after_reseed[11920]]}")
+            check(26370 not in after_reseed,
+                  "but an item the event never scored stays off the board")
+
+            db.session.query(CollectionLogItem).filter_by(page="Later Boss").delete()
+            db.session.query(CollectionLogItem).filter_by(
+                item_id=11920, page="Callisto and Artio").delete()
+            db.session.commit()
+            after_prune = clog_service.slot_placements(event.id)
+            check([p['page'] for p in after_prune[11920]] == ["King Black Dragon"],
+                  "a placement the catalog loses drops off, but the home survives",
+                  f"got {[p['page'] for p in after_prune[11920]]}")
+            seed_catalog()
+
             print("\n── Trigger reuse ───────────────────────────────────────────")
             tbow_challenge = Challenge.query.get(by_item[20997].challenge_id)
             tbow_trigger = Trigger.query.get(tbow_challenge.trigger_id)
@@ -278,6 +338,29 @@ def run():
             )
             check(blue_fang_proofs == 0, "and writes no proof row for the replayed item",
                   f"got {blue_fang_proofs}")
+
+            print("\n── A shared slot scores once ───────────────────────────────")
+            # Dragon pickaxe sits on two pages but is still one challenge, so the
+            # boss the drop came from is irrelevant and the other one cannot pay
+            # for it a second time.
+            before_pick = team_points(scoring.id, red.id)
+            check(len(submit("Clog Alice", "Dragon pickaxe", source="Callisto and Artio")) == 1,
+                  "a shared item scores from a page that is not its home")
+            check(team_points(scoring.id, red.id) == before_pick + 1,
+                  "and is worth one slot, not one per page",
+                  f"{before_pick} → {team_points(scoring.id, red.id)}")
+
+            check(submit("Clog Bob", "Dragon pickaxe", source="King Black Dragon") == [],
+                  "the same item from another of its bosses scores nothing")
+            check(team_points(scoring.id, red.id) == before_pick + 1, "leaving the total alone",
+                  f"got {team_points(scoring.id, red.id)}")
+
+            pick_slot = ClogSlot.query.filter_by(event_id=scoring.id, item_id=11920).first()
+            pick_statuses = ChallengeStatus.query.filter_by(
+                team_id=red.id, challenge_id=pick_slot.challenge_id,
+            ).count()
+            check(pick_statuses == 1, "on the one status row both pages share",
+                  f"got {pick_statuses}")
 
             print("\n── Null thread ─────────────────────────────────────────────")
             quiet = make_event("Test CLOG quiet", thread_id=None)
