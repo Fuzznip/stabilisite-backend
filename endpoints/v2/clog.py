@@ -11,6 +11,7 @@ from services.clog_service import (
     progress,
     recent_completions,
     serialize_slot,
+    slot_placements,
     team_players,
 )
 
@@ -32,8 +33,14 @@ def get_clog_slots(event_id):
         return err
 
     rows = event_slots(event.id)
+    # `total` stays the number of scored slots: an item on four boss pages is
+    # drawn four times but is still one slot worth one slot's points.
+    placements = slot_placements(event.id)
     return json.dumps({
-        'data': [serialize_slot(slot, challenge) for slot, challenge in rows],
+        'data': [
+            serialize_slot(slot, challenge, placements.get(slot.item_id))
+            for slot, challenge in rows
+        ],
         'total': len(rows),
         'total_points': sum(int(c.value or 0) for _, c in rows),
     }, cls=ModelEncoder), 200

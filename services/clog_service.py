@@ -19,7 +19,7 @@ from services.triggers import get_or_create_trigger
 CLOG_CATEGORIES = ('Bosses', 'Raids')
 
 # Boss pages whose drops are worth the raids rate.
-HIGH_VALUE_PAGES = ('Nex',)
+HIGH_VALUE_PAGES = ('Nex', 'Yama', 'The Nightmare')
 
 # The Raids tab is worth the high rate in full; on the Bosses tab only these pages are.
 HIGH_VALUE_CATEGORY = 'Raids'
@@ -38,7 +38,8 @@ def catalog_slots() -> list[dict]:
     """Bosses and Raids catalog rows, one per item_id.
 
     An item on several boss pages (Dragon pickaxe, Awakener's orb) is one slot.
-    The first placement in (page_order, sequence) order becomes its display home.
+    The first placement in (page_order, sequence) order becomes its scoring home;
+    slot_placements recovers the rest for the board to draw.
     """
     rows = (
         CollectionLogItem.query
@@ -61,6 +62,62 @@ def catalog_slots() -> list[dict]:
             'image_url': row.image_url,
         }
     return list(deduped.values())
+
+
+def _placement(category: str, page: str, page_order, sequence) -> dict:
+    return {
+        'category': category,
+        'page': page,
+        'page_order': int(page_order or 0),
+        'sequence': int(sequence or 0),
+    }
+
+
+def slot_placements(event_id) -> dict[int, list[dict]]:
+    """Every collection log page each of the event's slots appears on.
+
+    A shared drop (Awakener's orb on all four DT2 bosses, Dragon pickaxe on six
+    wilderness bosses) is one scored slot, and build_slots keeps only the first
+    placement as its home — so the other pages survive nowhere but the catalog.
+    Reading them back here rather than storing a copy is what keeps the board
+    from drifting out of step with the game's own log.
+
+    seed_collection_log.py truncates and re-inserts that catalog on every run,
+    which is why the slots themselves are a frozen snapshot. Only the event's own
+    items are looked up, so a re-seed can never add a slot to a running event or
+    resurrect a pruned one — the worst it can do is move where an item is drawn,
+    which is the point. The slot's stored home is seeded first and never dropped,
+    so a re-seed that loses a placement still cannot make an item vanish.
+
+    Returned lists are in display order and always hold at least the home page.
+    """
+    slots = ClogSlot.query.filter_by(event_id=event_id).all()
+    if not slots:
+        return {}
+
+    placements = {
+        slot.item_id: [
+            _placement(slot.category, slot.page, slot.page_order, slot.sequence)
+        ]
+        for slot in slots
+    }
+
+    rows = (
+        CollectionLogItem.query
+        .filter(CollectionLogItem.category.in_(CLOG_CATEGORIES))
+        .all()
+    )
+    for row in rows:
+        entries = placements.get(row.item_id)
+        if entries is None:
+            continue
+        if any(e['category'] == row.category and e['page'] == row.page for e in entries):
+            continue
+        entries.append(_placement(row.category, row.page, row.page_order, row.sequence))
+
+    for entries in placements.values():
+        entries.sort(key=lambda e: (e['page_order'], e['sequence']))
+    return placements
 
 
 def build_slots(event_id) -> list[ClogSlot]:
@@ -103,9 +160,14 @@ def event_slots(event_id) -> list[tuple[ClogSlot, Challenge]]:
     )
 
 
-def serialize_slot(slot: ClogSlot, challenge: Challenge) -> dict:
+def serialize_slot(slot: ClogSlot, challenge: Challenge, placements: list[dict] | None = None) -> dict:
+    """A slot for the board. `page` stays the scoring home the feed prints;
+    `placements` is every page it should be drawn on."""
     data = slot.serialize()
     data['points'] = challenge.value
+    data['placements'] = placements or [
+        _placement(slot.category, slot.page, slot.page_order, slot.sequence)
+    ]
     return data
 
 

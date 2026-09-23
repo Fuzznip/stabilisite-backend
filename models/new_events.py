@@ -436,7 +436,8 @@ class ClogSlot(db.Model, Serializer):
     A slot's identity is its OSRS item_id, not its page: an item that appears on
     several boss pages (Dragon pickaxe, Awakener's orb) is one slot, scored once.
     `page`/`page_order`/`sequence` are the display home only and never affect
-    scoring.
+    scoring — the board draws the slot on every page the game lists it on, which
+    clog_service.slot_placements reads back from the catalog at request time.
 
     The catalog fields are copied from CollectionLogItem rather than joined,
     because scripts/seed_collection_log.py truncates and re-inserts that table on
