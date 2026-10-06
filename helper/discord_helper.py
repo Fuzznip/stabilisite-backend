@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from typing import Optional, List, Dict, Any
+from datetime import datetime
 
 load_dotenv()
 
@@ -200,3 +201,68 @@ def get_event_category_id() -> Optional[str]:
     except requests.exceptions.RequestException as e:
         logging.error(f"Failed to get Discord categories: {str(e)}")
         return None
+
+
+def discord_sync_enabled() -> bool:
+    """Bot calls only happen in production; elsewhere every helper is a no-op."""
+    return os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") == "production"
+
+
+def _scheduled_event_body(name: str, start: datetime, end: datetime) -> Dict[str, Any]:
+    return {
+        "name": name,
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat(),
+        "token": os.getenv("DISCORD_BOT_API_TOKEN"),
+    }
+
+
+def create_discord_scheduled_event(name: str, start: datetime, end: datetime) -> Optional[str]:
+    """Creates an external Discord scheduled event. Returns its id, or None on failure."""
+    if not discord_sync_enabled():
+        return None
+
+    url = os.getenv("DISCORD_BOT_API") + "/scheduled-events"
+    try:
+        response = requests.post(url, json=_scheduled_event_body(name, start, end), timeout=10)
+        response.raise_for_status()
+        return response.json().get("id")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to create Discord scheduled event: {str(e)}")
+        return None
+
+
+def update_discord_scheduled_event(event_id: str, name: str, start: datetime, end: datetime) -> str:
+    """Updates a Discord scheduled event.
+
+    Returns "ok", "missing" (the event no longer exists in Discord, e.g. it was
+    deleted by hand, so the caller should recreate it), or "failed".
+    """
+    if not discord_sync_enabled():
+        return "failed"
+
+    url = os.getenv("DISCORD_BOT_API") + f"/scheduled-events/{event_id}"
+    try:
+        response = requests.patch(url, json=_scheduled_event_body(name, start, end), timeout=10)
+        if response.status_code == 404:
+            return "missing"
+        response.raise_for_status()
+        return "ok"
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to update Discord scheduled event {event_id}: {str(e)}")
+        return "failed"
+
+
+def delete_discord_scheduled_event(event_id: str) -> bool:
+    """Deletes a Discord scheduled event. An already-deleted event counts as success (bot side)."""
+    if not discord_sync_enabled():
+        return False
+
+    url = os.getenv("DISCORD_BOT_API") + f"/scheduled-events/{event_id}"
+    try:
+        response = requests.delete(url, json={"token": os.getenv("DISCORD_BOT_API_TOKEN")}, timeout=10)
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to delete Discord scheduled event {event_id}: {str(e)}")
+        return False
