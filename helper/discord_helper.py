@@ -208,23 +208,46 @@ def discord_sync_enabled() -> bool:
     return os.getenv("RAILWAY_ENVIRONMENT_NAME", "local") == "production"
 
 
-def _scheduled_event_body(name: str, start: datetime, end: datetime) -> Dict[str, Any]:
+def list_discord_channels() -> Optional[List[Dict[str, Any]]]:
+    """Stage, voice and text channels a Discord event can be held in or point to,
+    in display order. None when the bot can't be asked."""
+    if not discord_sync_enabled():
+        return None
+
+    url = os.getenv("DISCORD_BOT_API") + "/channels"
+    try:
+        response = requests.get(url, params={"token": os.getenv("DISCORD_BOT_API_TOKEN")}, timeout=10)
+        response.raise_for_status()
+        return response.json().get("channels")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to list Discord channels: {str(e)}")
+        return None
+
+
+def _scheduled_event_body(name: str, start: datetime, end: datetime, channel_id: Optional[str],
+                          location: Optional[str], image_url: Optional[str]) -> Dict[str, Any]:
     return {
         "name": name,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
+        "channel_id": channel_id,
+        "location": location,
+        "image_url": image_url,
         "token": os.getenv("DISCORD_BOT_API_TOKEN"),
     }
 
 
-def create_discord_scheduled_event(name: str, start: datetime, end: datetime) -> Optional[str]:
-    """Creates an external Discord scheduled event. Returns its id, or None on failure."""
+def create_discord_scheduled_event(name: str, start: datetime, end: datetime, channel_id: Optional[str] = None,
+                                   location: Optional[str] = None, image_url: Optional[str] = None) -> Optional[str]:
+    """Creates a Discord scheduled event in a stage/voice channel, or an external
+    one at `location`. Returns its id, or None on failure."""
     if not discord_sync_enabled():
         return None
 
     url = os.getenv("DISCORD_BOT_API") + "/scheduled-events"
+    body = _scheduled_event_body(name, start, end, channel_id, location, image_url)
     try:
-        response = requests.post(url, json=_scheduled_event_body(name, start, end), timeout=10)
+        response = requests.post(url, json=body, timeout=30)
         response.raise_for_status()
         return response.json().get("id")
     except requests.exceptions.RequestException as e:
@@ -232,8 +255,10 @@ def create_discord_scheduled_event(name: str, start: datetime, end: datetime) ->
         return None
 
 
-def update_discord_scheduled_event(event_id: str, name: str, start: datetime, end: datetime) -> str:
-    """Updates a Discord scheduled event.
+def update_discord_scheduled_event(event_id: str, name: str, start: datetime, end: datetime,
+                                   channel_id: Optional[str] = None, location: Optional[str] = None,
+                                   image_url: Optional[str] = None) -> str:
+    """Updates a Discord scheduled event. A None image_url removes its cover.
 
     Returns "ok", "missing" (the event no longer exists in Discord, e.g. it was
     deleted by hand, so the caller should recreate it), or "failed".
@@ -242,8 +267,10 @@ def update_discord_scheduled_event(event_id: str, name: str, start: datetime, en
         return "failed"
 
     url = os.getenv("DISCORD_BOT_API") + f"/scheduled-events/{event_id}"
+    body = _scheduled_event_body(name, start, end, channel_id, location, image_url)
     try:
-        response = requests.patch(url, json=_scheduled_event_body(name, start, end), timeout=10)
+        # Longer than the other calls: the bot downloads the cover photo first.
+        response = requests.patch(url, json=body, timeout=30)
         if response.status_code == 404:
             return "missing"
         response.raise_for_status()

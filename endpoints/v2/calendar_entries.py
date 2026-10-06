@@ -12,6 +12,9 @@ from models.new_events import Event
 # Discord rejects scheduled-event names over 100 characters, and a synced entry
 # with a longer name would fail on every save.
 MAX_NAME_LENGTH = 100
+# Discord's limit for an external event's location.
+MAX_LOCATION_LENGTH = 100
+MAX_COVER_URL_LENGTH = 1024
 
 
 def _parse_datetime(value):
@@ -56,6 +59,19 @@ def _validate(data):
     if end <= start:
         return None, 'end_date must be after start_date'
 
+    location_channel_id = str(data.get('location_channel_id') or '').strip() or None
+    if location_channel_id and not location_channel_id.isdigit():
+        return None, 'location_channel_id must be a Discord channel id'
+    location = (data.get('location') or '').strip() or None
+    if location and len(location) > MAX_LOCATION_LENGTH:
+        return None, f'Location must be {MAX_LOCATION_LENGTH} characters or fewer'
+    if location_channel_id and location:
+        return None, 'Give either a location channel or a location, not both'
+
+    cover_image_url = (data.get('cover_image_url') or '').strip() or None
+    if cover_image_url and (not cover_image_url.startswith('https://') or len(cover_image_url) > MAX_COVER_URL_LENGTH):
+        return None, 'cover_image_url must be an https URL'
+
     event_id = None
     if data.get('event_id'):
         event_id = _parse_uuid(data['event_id'])
@@ -71,6 +87,9 @@ def _validate(data):
         'is_public': bool(data.get('is_public', False)),
         'sync_discord': bool(data.get('sync_discord', False)),
         'event_id': event_id,
+        'location_channel_id': location_channel_id,
+        'location': location,
+        'cover_image_url': cover_image_url,
     }, None
 
 
@@ -88,8 +107,16 @@ def _discord_window(entry):
     return start, entry.end_date
 
 
+def _discord_details(entry):
+    return {
+        'channel_id': entry.location_channel_id,
+        'location': entry.location,
+        'image_url': entry.cover_image_url,
+    }
+
+
 def _create_discord_event(entry, start, end):
-    new_id = discord_helper.create_discord_scheduled_event(entry.name, start, end)
+    new_id = discord_helper.create_discord_scheduled_event(entry.name, start, end, **_discord_details(entry))
     if not new_id:
         return 'failed'
     entry.discord_event_id = new_id
@@ -122,7 +149,8 @@ def _sync_discord(entry):
         return 'skipped'  # already over; Discord would reject it
 
     if entry.discord_event_id:
-        result = discord_helper.update_discord_scheduled_event(entry.discord_event_id, entry.name, start, end)
+        result = discord_helper.update_discord_scheduled_event(
+            entry.discord_event_id, entry.name, start, end, **_discord_details(entry))
         if result == 'missing':  # deleted by hand in Discord
             return _create_discord_event(entry, start, end)
         return result
@@ -144,6 +172,15 @@ def get_calendar_entries():
 
     entries = query.order_by(CalendarEntry.start_date).all()
     return jsonify({'data': [entry.serialize() for entry in entries]}), 200
+
+
+@app.route("/v2/calendar/discord-channels", methods=['GET'])
+def get_calendar_discord_channels():
+    """Channels a synced entry can be held in or point to (stage, voice, text)."""
+    channels = discord_helper.list_discord_channels()
+    if channels is None:
+        return jsonify({'error': 'Discord channels are unavailable'}), 503
+    return jsonify({'data': channels}), 200
 
 
 @app.route("/v2/calendar", methods=['POST'])
