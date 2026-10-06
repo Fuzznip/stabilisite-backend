@@ -27,6 +27,11 @@ class CalendarEntry(db.Model, Serializer):
     is_public = db.Column(db.Boolean, nullable=False, default=False)
     sync_discord = db.Column(db.Boolean, nullable=False, default=False)
     discord_event_id = db.Column(db.String(32), nullable=True)
+    # Where the Discord event happens: a stage/voice channel, else free text
+    # (a "<#id>" text-channel mention, a link, ...). Neither means the bot default.
+    location_channel_id = db.Column(db.String(32), nullable=True)
+    location = db.Column(db.String(100), nullable=True)
+    cover_image_url = db.Column(db.String(1024), nullable=True)
     event_id = db.Column(UUID(as_uuid=True), db.ForeignKey('new_stability.events.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_now)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_now, onupdate=_now)

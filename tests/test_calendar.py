@@ -105,7 +105,28 @@ def test_create_helper_posts_and_returns_id(mocker, production):
     url = post.call_args.args[0]
     body = post.call_args.kwargs["json"]
     assert url == "https://bot.invalid/scheduled-events"
-    assert body == {"name": "Bingo", "start_time": start.isoformat(), "end_time": end.isoformat(), "token": "secret"}
+    assert body == {
+        "name": "Bingo", "start_time": start.isoformat(), "end_time": end.isoformat(),
+        "channel_id": None, "location": None, "image_url": None, "token": "secret",
+    }
+
+
+def test_create_helper_sends_location_and_cover(mocker, production):
+    post = mocker.patch("helper.discord_helper.requests.post", return_value=_response(mocker, body={"id": "42"}))
+    discord_helper.create_discord_scheduled_event(
+        "Bingo", NOW, NOW + timedelta(hours=1), channel_id="123", image_url="https://x.s3.amazonaws.com/a.png")
+    body = post.call_args.kwargs["json"]
+    assert body["channel_id"] == "123"
+    assert body["image_url"] == "https://x.s3.amazonaws.com/a.png"
+
+
+def test_list_channels_helper(mocker, production):
+    channels = [{"id": "1", "name": "stage", "type": "stage", "category": None}]
+    get = mocker.patch("helper.discord_helper.requests.get", return_value=_response(mocker, body={"channels": channels}))
+    assert discord_helper.list_discord_channels() == channels
+    assert get.call_args.args[0] == "https://bot.invalid/channels"
+    get.return_value = _response(mocker, status=500)
+    assert discord_helper.list_discord_channels() is None
 
 
 def test_create_helper_returns_none_on_error(mocker, production):
@@ -166,6 +187,23 @@ def test_create_entry(client):
     assert body["data"]["is_public"] is True
 
 
+def test_create_entry_with_location_and_cover(client):
+    response = client.post("/v2/calendar", json=payload(
+        location="  <#555>  ", cover_image_url="https://x.s3.amazonaws.com/a.png"))
+    data = response.get_json()["data"]
+    assert data["location"] == "<#555>"
+    assert data["location_channel_id"] is None
+    assert data["cover_image_url"] == "https://x.s3.amazonaws.com/a.png"
+
+
+def test_channels_route(client, mocker):
+    mocker.patch("helper.discord_helper.list_discord_channels", return_value=None)
+    assert client.get("/v2/calendar/discord-channels").status_code == 503
+    channels = [{"id": "1", "name": "lounge", "type": "voice", "category": "Voice"}]
+    mocker.patch("helper.discord_helper.list_discord_channels", return_value=channels)
+    assert client.get("/v2/calendar/discord-channels").get_json()["data"] == channels
+
+
 def test_create_entry_linked_to_event(client):
     event_id = make_event()
     response = client.post("/v2/calendar", json=payload(type="bingo", event_id=event_id))
@@ -182,6 +220,10 @@ def test_create_entry_linked_to_event(client):
     ({"end_date": iso(NOW + timedelta(days=1))}, "end_date must be after start_date"),
     ({"event_id": "not-a-uuid"}, "Linked event not found"),
     ({"event_id": "00000000-0000-0000-0000-000000000000"}, "Linked event not found"),
+    ({"location_channel_id": "general"}, "Discord channel id"),
+    ({"location": "x" * 101}, "Location must be 100"),
+    ({"location_channel_id": "123", "location": "Somewhere"}, "not both"),
+    ({"cover_image_url": "http://example.com/a.png"}, "https URL"),
 ])
 def test_create_rejects_invalid(client, overrides, message):
     response = client.post("/v2/calendar", json=payload(**overrides))
@@ -312,9 +354,11 @@ def test_entry_already_over_is_skipped(client, bot):
 
 def test_update_with_existing_discord_event(client, bot):
     entry_id = make_entry(sync_discord=True, discord_event_id="111")
-    response = client.put(f"/v2/calendar/{entry_id}", json=payload(name="Renamed", sync_discord=True))
+    response = client.put(f"/v2/calendar/{entry_id}", json=payload(
+        name="Renamed", sync_discord=True, location_channel_id="777"))
     assert response.get_json()["discord_sync"] == "ok"
     assert bot.update.call_args.args[:2] == ("111", "Renamed")
+    assert bot.update.call_args.kwargs == {"channel_id": "777", "location": None, "image_url": None}
     bot.create.assert_not_called()
 
 
