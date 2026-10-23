@@ -1,3 +1,4 @@
+import hmac
 import os
 
 import logging
@@ -6,7 +7,7 @@ from logging.config import dictConfig
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask import Flask, render_template
+from flask import Flask, render_template, request, jsonify
 from flask_compress import Compress
 from dotenv import load_dotenv
 from flask_swagger_ui import get_swaggerui_blueprint
@@ -134,6 +135,24 @@ API_URL = '/static/swagger.json'  # Path to the Swagger JSON file
 # Register Swagger UI blueprint
 swaggerui_blueprint = get_swaggerui_blueprint(SWAGGER_URL, API_URL)
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
+
+# Every request must carry one of these keys in the X-API-Key header.
+# Comma-separated so each client (site, bot, server) can have its own key and
+# keys can be rotated without downtime. Unset disables the check (local dev, CI).
+API_KEYS = [key.strip() for key in os.getenv("API_KEYS", "").split(",") if key.strip()]
+API_KEY_EXEMPT_PREFIXES = (SWAGGER_URL, "/static/")
+
+if not API_KEYS:
+    logging.getLogger(__name__).warning("API_KEYS is not set; API key checks are disabled")
+
+@app.before_request
+def require_api_key():
+    if not API_KEYS or request.method == "OPTIONS" or request.path.startswith(API_KEY_EXEMPT_PREFIXES):
+        return None
+    provided = request.headers.get("X-API-Key", "")
+    if not any(hmac.compare_digest(provided, key) for key in API_KEYS):
+        return jsonify({"error": "Invalid or missing API key"}), 401
+    return None
 
 # Needed to auto generate tables using SQLAlchemy
 from models import models, stability_party_3, bingo, new_events, calendar_entries
