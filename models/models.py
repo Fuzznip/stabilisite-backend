@@ -52,7 +52,7 @@ class Splits(db.Model, Serializer):
     item_id = db.Column(db.String, nullable=False)
     split_contribution = db.Column(db.Numeric, nullable=False)
     group_size = db.Column(db.Integer, nullable=False)
-    screenshot_link = db.Column(db.String)
+    proof = db.Column(db.String)
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
 
     def serialize(self):
