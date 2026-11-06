@@ -50,5 +50,6 @@ jobs:
           DATABASE_USERNAME: stability
           DATABASE_PASSWORD: stabilisite
           DATABASE_URL: localhost:5432/stability_test
+          TRIAL_BOARD_TEST_DATABASE_URL: postgresql+psycopg2://stability:stabilisite@localhost:5432/stability_test
         run: |
           pytest
