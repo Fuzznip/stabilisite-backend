@@ -21,11 +21,12 @@ from services.trial_board_windows import RuleError, parse_windows
 
 def database_url():
     direct = os.getenv('TRIAL_BOARD_TEST_DATABASE_URL')
-    if direct:
-        return direct
-    return sa.URL.create('postgresql+psycopg2', username=os.getenv('DATABASE_USERNAME', 'stability'),
+    url = sa.make_url(direct) if direct else sa.URL.create('postgresql+psycopg2', username=os.getenv('DATABASE_USERNAME', 'stability'),
         password=os.getenv('DATABASE_PASSWORD', 'stabilisite'), host='127.0.0.1', port=5432,
-        database='stability')
+        database='stability_test')
+    if not (url.database or '').endswith('_test'):
+        raise RuntimeError('Trial-board tests require a database ending in _test')
+    return url
 
 
 class TrialBoardTests(unittest.TestCase):
