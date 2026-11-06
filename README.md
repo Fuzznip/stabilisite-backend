@@ -30,3 +30,8 @@ or with a WSGI server:
 waitress-serve --host=0.0.0.0 --port=5000 app:app
 ```
 
+
+## Trial coordination
+
+Optional backend-owned trial board: [setup, API and tests](docs/trial-board.md).
+Paired with Stabilibot PR #29. Disabled by default; requires a database migration.
